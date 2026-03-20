@@ -1,0 +1,22 @@
+{
+  "name": "detrix-platform",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.0.0",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev --parallel",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "format": "turbo run format",
+    "db:migrate": "supabase db push",
+    "contracts:test": "pnpm --filter @detrix/contracts test"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "turbo": "^2.0.12",
+    "typescript": "^5.8.3"
+  }
+}
+

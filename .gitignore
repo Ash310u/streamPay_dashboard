@@ -1,0 +1,13 @@
+node_modules
+dist
+build
+.turbo
+.expo
+.env
+.env.local
+.DS_Store
+coverage
+pnpm-lock.yaml
+*.log
+supabase/.temp
+

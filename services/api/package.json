@@ -1,0 +1,38 @@
+{
+  "name": "@detrix/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/server.ts",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "echo \"Add API tests with Supertest\""
+  },
+  "dependencies": {
+    "@detrix/billing": "workspace:*",
+    "@detrix/operator-analytics": "workspace:*",
+    "@detrix/notification": "workspace:*",
+    "@detrix/session-engine": "workspace:*",
+    "@detrix/shared-types": "workspace:*",
+    "@detrix/supabase-client": "workspace:*",
+    "@detrix/tax-assistant": "workspace:*",
+    "@detrix/x404-adapter": "workspace:*",
+    "@detrix/zod-schemas": "workspace:*",
+    "@fastify/cors": "^11.1.0",
+    "@fastify/rate-limit": "^10.3.0",
+    "@supabase/supabase-js": "^2.57.4",
+    "dotenv": "^17.2.3",
+    "fastify": "^5.6.0",
+    "ioredis": "^5.8.1",
+    "razorpay": "^2.9.6",
+    "socket.io": "^4.8.1",
+    "winston": "^3.18.3",
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.5"
+  }
+}
+

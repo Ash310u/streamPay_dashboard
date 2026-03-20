@@ -1,0 +1,14 @@
+{
+  "title": "Detrix Platform Overview",
+  "panels": [
+    {
+      "title": "API Health",
+      "type": "stat"
+    },
+    {
+      "title": "Session Throughput",
+      "type": "timeseries"
+    }
+  ]
+}
+

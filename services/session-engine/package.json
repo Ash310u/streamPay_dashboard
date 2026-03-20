@@ -1,0 +1,25 @@
+{
+  "name": "@detrix/session-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "echo \"Add Vitest or Jest session-engine tests\""
+  },
+  "dependencies": {
+    "@detrix/billing-core": "workspace:*",
+    "@detrix/geofence-utils": "workspace:*",
+    "@detrix/qr-utils": "workspace:*",
+    "@detrix/shared-types": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.5"
+  }
+}
+
