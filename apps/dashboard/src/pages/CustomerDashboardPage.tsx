@@ -10,6 +10,14 @@ type Wallet = {
   currency_code: string;
 };
 
+type TopUpOrder = {
+  orderId: string;
+  amount: number;
+  currency: string;
+  keyId: string;
+  mode: "live" | "demo";
+};
+
 type Session = {
   id: string;
   created_at: string;
@@ -21,6 +29,18 @@ type Session = {
     name?: string;
     city?: string;
   };
+};
+
+type ChargeSnapshot = {
+  sessionId: string;
+  status: string;
+  elapsedSeconds: number;
+  billingUnit: string;
+  lockedRate: number;
+  currentChargeInr: number;
+  currentChargeCrypto: number;
+  merchantPayoutInr: number;
+  platformFeeInr: number;
 };
 
 type Notification = {
@@ -44,20 +64,39 @@ export const CustomerDashboardPage = () => {
     queryKey: ["active-session"],
     queryFn: () => apiFetch<Session | null>("/sessions/active")
   });
+  const activeChargeQuery = useQuery({
+    queryKey: ["active-session-charge", activeSessionQuery.data?.id],
+    queryFn: () => apiFetch<ChargeSnapshot>(`/sessions/${activeSessionQuery.data!.id}/charge`),
+    enabled: !!activeSessionQuery.data?.id,
+    refetchInterval: 5_000
+  });
   const notificationsQuery = useQuery({
     queryKey: ["customer-notifications"],
     queryFn: () => apiFetch<Notification[]>("/users/me/notifications")
   });
 
   const topUpMutation = useMutation({
-    mutationFn: (amountInr: number) =>
-      apiFetch<Wallet>("/wallet/topup/verify", {
+    mutationFn: async (amountInr: number) => {
+      const order = await apiFetch<TopUpOrder>("/wallet/topup/order", {
         method: "POST",
         body: JSON.stringify({
           amountInr,
-          paymentId: `manual_${Date.now()}`
+          currency: "INR"
         })
-      }),
+      });
+
+      if (order.mode === "live") {
+        throw new Error("Live Razorpay web checkout is not configured in this local build yet");
+      }
+
+      return apiFetch<Wallet>("/wallet/topup/verify", {
+        method: "POST",
+        body: JSON.stringify({
+          amountInr,
+          paymentId: order.orderId
+        })
+      });
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["wallet-balance"] });
       void queryClient.invalidateQueries({ queryKey: ["customer-notifications"] });
@@ -85,16 +124,19 @@ export const CustomerDashboardPage = () => {
       socket.on("session:started", () => {
         void queryClient.invalidateQueries({ queryKey: ["active-session"] });
         void queryClient.invalidateQueries({ queryKey: ["customer-sessions"] });
+        void queryClient.invalidateQueries({ queryKey: ["active-session-charge"] });
       });
 
       socket.on("session:closed", () => {
         void queryClient.invalidateQueries({ queryKey: ["active-session"] });
         void queryClient.invalidateQueries({ queryKey: ["customer-sessions"] });
         void queryClient.invalidateQueries({ queryKey: ["wallet-balance"] });
+        void queryClient.invalidateQueries({ queryKey: ["active-session-charge"] });
       });
 
       socket.on("billing:charge_update", () => {
         void queryClient.invalidateQueries({ queryKey: ["wallet-balance"] });
+        void queryClient.invalidateQueries({ queryKey: ["active-session-charge"] });
       });
 
       socket.on("billing:settled", () => {
@@ -187,6 +229,26 @@ export const CustomerDashboardPage = () => {
               <div className="mt-4 space-y-3 rounded-[24px] bg-white/55 p-5">
                 <p className="text-sm text-ink/55">Active venue</p>
                 <p className="text-2xl font-semibold">{activeSessionQuery.data.venues?.name ?? activeSessionQuery.data.venue_id}</p>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-[20px] bg-white/70 p-4">
+                    <p className="text-xs uppercase tracking-[0.25em] text-ink/50">Current charge</p>
+                    <p className="mt-2 text-xl font-semibold">
+                      INR {Number(activeChargeQuery.data?.currentChargeInr ?? activeSessionQuery.data.inr_equivalent ?? 0).toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="rounded-[20px] bg-white/70 p-4">
+                    <p className="text-xs uppercase tracking-[0.25em] text-ink/50">Elapsed</p>
+                    <p className="mt-2 text-xl font-semibold">
+                      {Math.floor(Number(activeChargeQuery.data?.elapsedSeconds ?? 0) / 60)}m {Number(activeChargeQuery.data?.elapsedSeconds ?? 0) % 60}s
+                    </p>
+                  </div>
+                  <div className="rounded-[20px] bg-white/70 p-4">
+                    <p className="text-xs uppercase tracking-[0.25em] text-ink/50">Locked rate</p>
+                    <p className="mt-2 text-xl font-semibold">
+                      INR {Number(activeChargeQuery.data?.lockedRate ?? 0).toFixed(2)}
+                    </p>
+                  </div>
+                </div>
                 <button
                   onClick={() => checkoutMutation.mutate(activeSessionQuery.data!.id)}
                   className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5"

@@ -1,9 +1,9 @@
 import type { FastifyInstance } from "fastify";
 import { calculateCharge } from "@detrix/billing-core";
 import { SessionEngineService } from "@detrix/session-engine";
-import { BlockchainAdapterService } from "@detrix/blockchain-adapter";
+import { BlockchainAdapterService } from "../../../blockchain-adapter/src/index.js";
 import { ApiError } from "../lib/api-error.js";
-import { redis } from "../lib/redis.js";
+import { redisSetValue } from "../lib/redis.js";
 import { RealtimeEmitter } from "../lib/realtime.js";
 import { WalletService } from "./wallet-service.js";
 
@@ -95,7 +95,7 @@ export class SessionService {
     idempotencyKey: string;
   }) {
     const idempotencyKey = `idem:location:${params.userId}:${params.idempotencyKey}`;
-    const reserved = await redis.set(idempotencyKey, "1", "EX", 120, "NX");
+    const reserved = await redisSetValue(idempotencyKey, "1", { ttlSeconds: 120, nx: true });
 
     if (!reserved) {
       throw new ApiError(409, "Duplicate location event");
@@ -437,6 +437,257 @@ export class SessionService {
     });
   }
 
+  // ── Low-balance pause/resume ──────────────────────────────────────────────
+
+  /**
+   * Check if an active session user's wallet has fallen below the minimum
+   * charge threshold, and if so pause billing.  Called periodically by a
+   * scheduled task or on each billing tick.
+   */
+  async checkAndPauseIfLowBalance(sessionId: string) {
+    const { data: session } = await this.app.supabase
+      .from("sessions")
+      .select("*")
+      .eq("id", sessionId)
+      .maybeSingle();
+
+    if (!session || session.status !== "active") return null;
+
+    const wallet = await this.walletService.getWalletByUser(session.user_id);
+    const { data: plan } = await this.app.supabase
+      .from("pricing_plans")
+      .select("minimum_charge_inr")
+      .eq("id", session.pricing_plan_id)
+      .maybeSingle();
+
+    if (!plan) return null;
+
+    const balance = Number(wallet.balance_inr_equivalent);
+    const minCharge = Number(plan.minimum_charge_inr);
+
+    if (balance < minCharge) {
+      // Pause the session — keep billable time frozen
+      await this.app.supabase
+        .from("sessions")
+        .update({ status: "exit_detected", pause_reason: "low_balance" })
+        .eq("id", sessionId);
+
+      await this.logEvent(sessionId, "paused_low_balance", { balance, minCharge });
+      this.emitter.emitToUser(session.user_id, "session:paused", {
+        sessionId,
+        reason: "low_balance",
+        balance,
+        requiredMinimum: minCharge
+      });
+
+      // Auto-close after 5 minutes if still paused
+      setTimeout(async () => {
+        const { data: check } = await this.app.supabase
+          .from("sessions")
+          .select("status")
+          .eq("id", sessionId)
+          .maybeSingle();
+
+        if (check?.status === "exit_detected") {
+          await this.closeSession({
+            sessionId,
+            userId: session.user_id,
+            exitTime: new Date().toISOString(),
+            triggerMode: "self_checkout"
+          });
+        }
+      }, 5 * 60 * 1000);
+
+      return { paused: true, reason: "low_balance" };
+    }
+
+    return { paused: false };
+  }
+
+  /**
+   * Resume a paused session after top-up.
+   */
+  async resumeSession(userId: string, sessionId: string) {
+    const { data: session } = await this.app.supabase
+      .from("sessions")
+      .select("*")
+      .eq("id", sessionId)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (!session) throw new ApiError(404, "Session not found");
+    if (session.status !== "exit_detected") throw new ApiError(409, "Session is not paused");
+
+    const wallet = await this.walletService.getWalletByUser(userId);
+    const { data: plan } = await this.app.supabase
+      .from("pricing_plans")
+      .select("minimum_charge_inr")
+      .eq("id", session.pricing_plan_id)
+      .maybeSingle();
+
+    if (Number(wallet.balance_inr_equivalent) < Number(plan?.minimum_charge_inr ?? 0)) {
+      throw new ApiError(409, "Wallet balance still below minimum charge");
+    }
+
+    const { data: updated } = await this.app.supabase
+      .from("sessions")
+      .update({ status: "active", pause_reason: null })
+      .eq("id", sessionId)
+      .select("*")
+      .single();
+
+    await this.logEvent(sessionId, "resumed", { previousPauseReason: "low_balance" });
+    this.emitter.emitToUser(userId, "session:started", updated);
+    return updated;
+  }
+
+  // ── Rate circuit breaker ─────────────────────────────────────────────────
+
+  /**
+   * Check if the CoinGecko live rate has drifted >10% from the session's
+   * locked rate.  If so, pause the session and notify the user.
+   */
+  async checkRateCircuitBreaker(sessionId: string) {
+    const { data: session } = await this.app.supabase
+      .from("sessions")
+      .select("*")
+      .eq("id", sessionId)
+      .maybeSingle();
+
+    if (!session || session.status !== "active" || !session.locked_rate) return null;
+
+    try {
+      const { RateService } = await import("./rate-service.js");
+      const rateService = new RateService(this.app);
+      const latestRate = await rateService.getInrRate("USDC");
+      const lockedRate = Number(session.locked_rate);
+      const drift = Math.abs((latestRate - lockedRate) / lockedRate);
+
+      if (drift > 0.1) {
+        // Pause + notify
+        await this.app.supabase
+          .from("sessions")
+          .update({ status: "exit_detected", pause_reason: "rate_drift" })
+          .eq("id", sessionId);
+
+        await this.logEvent(sessionId, "paused_rate_drift", {
+          lockedRate,
+          latestRate,
+          drift: (drift * 100).toFixed(1) + "%"
+        });
+
+        this.emitter.emitToUser(session.user_id, "session:paused", {
+          sessionId,
+          reason: "rate_drift",
+          lockedRate,
+          latestRate,
+          driftPercent: (drift * 100).toFixed(1)
+        });
+
+        return { circuitBroken: true, drift: (drift * 100).toFixed(1) };
+      }
+
+      return { circuitBroken: false, drift: (drift * 100).toFixed(1) };
+    } catch {
+      // Rate fetch failed — don't break the session
+      return { circuitBroken: false, error: "rate_fetch_failed" };
+    }
+  }
+
+  // ── App resume reconciliation ────────────────────────────────────────────
+
+  /**
+   * Called when mobile app returns to foreground.  Syncs the latest
+   * session state + current charge back to the client.
+   */
+  async reconcileOnResume(userId: string) {
+    const session = await this.getActiveSession(userId);
+
+    if (!session) return { activeSession: null };
+
+    const { data: plan } = await this.app.supabase
+      .from("pricing_plans")
+      .select("*")
+      .eq("id", session.pricing_plan_id)
+      .maybeSingle();
+
+    if (!plan) return { activeSession: session, currentCharge: 0 };
+
+    const elapsedSeconds = Math.max(
+      1,
+      Math.floor((Date.now() - new Date(session.entry_time).getTime()) / 1000)
+    );
+
+    const charge = calculateCharge({
+      elapsedSeconds,
+      billingUnit: plan.billing_unit,
+      rateCrypto: Number(plan.rate_crypto),
+      lockedRate: Number(session.locked_rate ?? 0),
+      minimumChargeInr: Number(plan.minimum_charge_inr),
+      maximumCapInr: plan.maximum_cap_inr ? Number(plan.maximum_cap_inr) : null,
+      baseFeeInr: Number(plan.base_fee_inr),
+      platformFeeRate: Number(process.env.PLATFORM_FEE_RATE ?? 0.005)
+    });
+
+    return {
+      activeSession: session,
+      currentCharge: charge.grossInr,
+      elapsedSeconds,
+      lockedRate: Number(session.locked_rate),
+      billingUnit: plan.billing_unit
+    };
+  }
+
+  async getChargeSnapshot(userId: string, sessionId: string) {
+    const { data: session } = await this.app.supabase
+      .from("sessions")
+      .select("*")
+      .eq("id", sessionId)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (!session) {
+      throw new ApiError(404, "Session not found");
+    }
+
+    const { data: plan } = await this.app.supabase
+      .from("pricing_plans")
+      .select("*")
+      .eq("id", session.pricing_plan_id)
+      .maybeSingle();
+
+    if (!plan) {
+      throw new ApiError(404, "Pricing plan not found");
+    }
+
+    const elapsedSeconds = session.status === "closed" && session.duration_seconds
+      ? Number(session.duration_seconds)
+      : Math.max(1, Math.floor((Date.now() - new Date(session.entry_time).getTime()) / 1000));
+
+    const charge = calculateCharge({
+      elapsedSeconds,
+      billingUnit: plan.billing_unit,
+      rateCrypto: Number(plan.rate_crypto),
+      lockedRate: Number(session.locked_rate ?? 0),
+      minimumChargeInr: Number(plan.minimum_charge_inr),
+      maximumCapInr: plan.maximum_cap_inr ? Number(plan.maximum_cap_inr) : null,
+      baseFeeInr: Number(plan.base_fee_inr),
+      platformFeeRate: Number(process.env.PLATFORM_FEE_RATE ?? 0.005)
+    });
+
+    return {
+      sessionId,
+      status: session.status,
+      elapsedSeconds,
+      billingUnit: plan.billing_unit,
+      lockedRate: Number(session.locked_rate ?? 0),
+      currentChargeInr: charge.grossInr,
+      currentChargeCrypto: charge.cryptoAmount,
+      merchantPayoutInr: charge.merchantPayoutInr,
+      platformFeeInr: charge.platformFeeInr
+    };
+  }
+
   private async logEvent(sessionId: string, eventType: string, payload: unknown) {
     await this.app.supabase.from("session_events").insert({
       session_id: sessionId,
@@ -445,3 +696,4 @@ export class SessionService {
     });
   }
 }
+

@@ -39,8 +39,15 @@ export const isPointInsidePolygon = (point: Coordinates, coordinates: Array<[num
   let isInside = false;
 
   for (let i = 0, j = coordinates.length - 1; i < coordinates.length; j = i++) {
-    const [latI, lngI] = coordinates[i];
-    const [latJ, lngJ] = coordinates[j];
+    const current = coordinates[i];
+    const previous = coordinates[j];
+
+    if (!current || !previous) {
+      continue;
+    }
+
+    const [latI, lngI] = current;
+    const [latJ, lngJ] = previous;
 
     const intersects =
       lngI > point.lng !== lngJ > point.lng &&

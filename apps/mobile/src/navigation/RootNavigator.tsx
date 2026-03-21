@@ -7,6 +7,7 @@ import { HomeScreen } from "../screens/HomeScreen";
 import { NotificationsScreen } from "../screens/NotificationsScreen";
 import { ProfileScreen } from "../screens/ProfileScreen";
 import { QrScannerScreen } from "../screens/QrScannerScreen";
+import { VenueDetailScreen } from "../screens/VenueDetailScreen";
 import { WalletScreen } from "../screens/WalletScreen";
 
 const Stack = createNativeStackNavigator();
@@ -28,5 +29,6 @@ export const RootNavigator = () => (
     <Stack.Screen name="MainTabs" component={MainTabs} options={{ headerShown: false }} />
     <Stack.Screen name="Notifications" component={NotificationsScreen} />
     <Stack.Screen name="QrScanner" component={QrScannerScreen} options={{ title: "Scan QR" }} />
+    <Stack.Screen name="VenueDetail" component={VenueDetailScreen} options={{ title: "Venue" }} />
   </Stack.Navigator>
 );

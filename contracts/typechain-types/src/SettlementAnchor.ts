@@ -23,6 +23,33 @@ import type {
   TypedContractMethod,
 } from "../common";
 
+export declare namespace SettlementAnchor {
+  export type SettlementRecordStruct = {
+    merchant: AddressLike;
+    grossInrPaise: BigNumberish;
+    feeInrPaise: BigNumberish;
+    netInrPaise: BigNumberish;
+    batchDate: string;
+    recordedAt: BigNumberish;
+  };
+
+  export type SettlementRecordStructOutput = [
+    merchant: string,
+    grossInrPaise: bigint,
+    feeInrPaise: bigint,
+    netInrPaise: bigint,
+    batchDate: string,
+    recordedAt: bigint
+  ] & {
+    merchant: string;
+    grossInrPaise: bigint;
+    feeInrPaise: bigint;
+    netInrPaise: bigint;
+    batchDate: string;
+    recordedAt: bigint;
+  };
+}
+
 export interface SettlementAnchorInterface extends Interface {
   getFunction(
     nameOrSignature:
@@ -31,13 +58,19 @@ export interface SettlementAnchorInterface extends Interface {
       | "anchorSession"
       | "flagDispute"
       | "getRoleAdmin"
+      | "getSettlement"
       | "grantRole"
       | "hasRole"
+      | "merchantTotalPayout"
+      | "owner"
+      | "pause"
       | "paused"
+      | "recordSettlement"
       | "renounceRole"
       | "revokeRole"
       | "sessionAnchors"
       | "supportsInterface"
+      | "unpause"
   ): FunctionFragment;
 
   getEvent(
@@ -48,6 +81,7 @@ export interface SettlementAnchorInterface extends Interface {
       | "RoleRevoked"
       | "SessionAnchored"
       | "SessionDisputed"
+      | "SettlementRecorded"
       | "Unpaused"
   ): EventFragment;
 
@@ -80,6 +114,10 @@ export interface SettlementAnchorInterface extends Interface {
     values: [BytesLike]
   ): string;
   encodeFunctionData(
+    functionFragment: "getSettlement",
+    values: [BytesLike]
+  ): string;
+  encodeFunctionData(
     functionFragment: "grantRole",
     values: [BytesLike, AddressLike]
   ): string;
@@ -87,7 +125,24 @@ export interface SettlementAnchorInterface extends Interface {
     functionFragment: "hasRole",
     values: [BytesLike, AddressLike]
   ): string;
+  encodeFunctionData(
+    functionFragment: "merchantTotalPayout",
+    values: [AddressLike]
+  ): string;
+  encodeFunctionData(functionFragment: "owner", values?: undefined): string;
+  encodeFunctionData(functionFragment: "pause", values?: undefined): string;
   encodeFunctionData(functionFragment: "paused", values?: undefined): string;
+  encodeFunctionData(
+    functionFragment: "recordSettlement",
+    values: [
+      BytesLike,
+      AddressLike,
+      BigNumberish,
+      BigNumberish,
+      BigNumberish,
+      string
+    ]
+  ): string;
   encodeFunctionData(
     functionFragment: "renounceRole",
     values: [BytesLike, AddressLike]
@@ -104,6 +159,7 @@ export interface SettlementAnchorInterface extends Interface {
     functionFragment: "supportsInterface",
     values: [BytesLike]
   ): string;
+  encodeFunctionData(functionFragment: "unpause", values?: undefined): string;
 
   decodeFunctionResult(
     functionFragment: "DEFAULT_ADMIN_ROLE",
@@ -125,9 +181,23 @@ export interface SettlementAnchorInterface extends Interface {
     functionFragment: "getRoleAdmin",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(
+    functionFragment: "getSettlement",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(functionFragment: "grantRole", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "hasRole", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "merchantTotalPayout",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "pause", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "paused", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "recordSettlement",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(
     functionFragment: "renounceRole",
     data: BytesLike
@@ -141,6 +211,7 @@ export interface SettlementAnchorInterface extends Interface {
     functionFragment: "supportsInterface",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(functionFragment: "unpause", data: BytesLike): Result;
 }
 
 export namespace PausedEvent {
@@ -257,6 +328,31 @@ export namespace SessionDisputedEvent {
   export type LogDescription = TypedLogDescription<Event>;
 }
 
+export namespace SettlementRecordedEvent {
+  export type InputTuple = [
+    sessionId: BytesLike,
+    merchant: AddressLike,
+    netInrPaise: BigNumberish,
+    batchDate: string
+  ];
+  export type OutputTuple = [
+    sessionId: string,
+    merchant: string,
+    netInrPaise: bigint,
+    batchDate: string
+  ];
+  export interface OutputObject {
+    sessionId: string;
+    merchant: string;
+    netInrPaise: bigint;
+    batchDate: string;
+  }
+  export type Event = TypedContractEvent<InputTuple, OutputTuple, OutputObject>;
+  export type Filter = TypedDeferredTopicFilter<Event>;
+  export type Log = TypedEventLog<Event>;
+  export type LogDescription = TypedLogDescription<Event>;
+}
+
 export namespace UnpausedEvent {
   export type InputTuple = [account: AddressLike];
   export type OutputTuple = [account: string];
@@ -338,6 +434,12 @@ export interface SettlementAnchor extends BaseContract {
 
   getRoleAdmin: TypedContractMethod<[role: BytesLike], [string], "view">;
 
+  getSettlement: TypedContractMethod<
+    [sessionId: BytesLike],
+    [SettlementAnchor.SettlementRecordStructOutput],
+    "view"
+  >;
+
   grantRole: TypedContractMethod<
     [role: BytesLike, account: AddressLike],
     [void],
@@ -350,7 +452,30 @@ export interface SettlementAnchor extends BaseContract {
     "view"
   >;
 
+  merchantTotalPayout: TypedContractMethod<
+    [merchant: AddressLike],
+    [bigint],
+    "view"
+  >;
+
+  owner: TypedContractMethod<[], [string], "view">;
+
+  pause: TypedContractMethod<[], [void], "nonpayable">;
+
   paused: TypedContractMethod<[], [boolean], "view">;
+
+  recordSettlement: TypedContractMethod<
+    [
+      sessionId: BytesLike,
+      merchant: AddressLike,
+      grossInrPaise: BigNumberish,
+      feeInrPaise: BigNumberish,
+      netInrPaise: BigNumberish,
+      batchDate: string
+    ],
+    [void],
+    "nonpayable"
+  >;
 
   renounceRole: TypedContractMethod<
     [role: BytesLike, callerConfirmation: AddressLike],
@@ -386,6 +511,8 @@ export interface SettlementAnchor extends BaseContract {
     [boolean],
     "view"
   >;
+
+  unpause: TypedContractMethod<[], [void], "nonpayable">;
 
   getFunction<T extends ContractMethod = ContractMethod>(
     key: string | FunctionFragment
@@ -423,6 +550,13 @@ export interface SettlementAnchor extends BaseContract {
     nameOrSignature: "getRoleAdmin"
   ): TypedContractMethod<[role: BytesLike], [string], "view">;
   getFunction(
+    nameOrSignature: "getSettlement"
+  ): TypedContractMethod<
+    [sessionId: BytesLike],
+    [SettlementAnchor.SettlementRecordStructOutput],
+    "view"
+  >;
+  getFunction(
     nameOrSignature: "grantRole"
   ): TypedContractMethod<
     [role: BytesLike, account: AddressLike],
@@ -437,8 +571,31 @@ export interface SettlementAnchor extends BaseContract {
     "view"
   >;
   getFunction(
+    nameOrSignature: "merchantTotalPayout"
+  ): TypedContractMethod<[merchant: AddressLike], [bigint], "view">;
+  getFunction(
+    nameOrSignature: "owner"
+  ): TypedContractMethod<[], [string], "view">;
+  getFunction(
+    nameOrSignature: "pause"
+  ): TypedContractMethod<[], [void], "nonpayable">;
+  getFunction(
     nameOrSignature: "paused"
   ): TypedContractMethod<[], [boolean], "view">;
+  getFunction(
+    nameOrSignature: "recordSettlement"
+  ): TypedContractMethod<
+    [
+      sessionId: BytesLike,
+      merchant: AddressLike,
+      grossInrPaise: BigNumberish,
+      feeInrPaise: BigNumberish,
+      netInrPaise: BigNumberish,
+      batchDate: string
+    ],
+    [void],
+    "nonpayable"
+  >;
   getFunction(
     nameOrSignature: "renounceRole"
   ): TypedContractMethod<
@@ -474,6 +631,9 @@ export interface SettlementAnchor extends BaseContract {
   getFunction(
     nameOrSignature: "supportsInterface"
   ): TypedContractMethod<[interfaceId: BytesLike], [boolean], "view">;
+  getFunction(
+    nameOrSignature: "unpause"
+  ): TypedContractMethod<[], [void], "nonpayable">;
 
   getEvent(
     key: "Paused"
@@ -516,6 +676,13 @@ export interface SettlementAnchor extends BaseContract {
     SessionDisputedEvent.InputTuple,
     SessionDisputedEvent.OutputTuple,
     SessionDisputedEvent.OutputObject
+  >;
+  getEvent(
+    key: "SettlementRecorded"
+  ): TypedContractEvent<
+    SettlementRecordedEvent.InputTuple,
+    SettlementRecordedEvent.OutputTuple,
+    SettlementRecordedEvent.OutputObject
   >;
   getEvent(
     key: "Unpaused"
@@ -590,6 +757,17 @@ export interface SettlementAnchor extends BaseContract {
       SessionDisputedEvent.InputTuple,
       SessionDisputedEvent.OutputTuple,
       SessionDisputedEvent.OutputObject
+    >;
+
+    "SettlementRecorded(bytes32,address,uint256,string)": TypedContractEvent<
+      SettlementRecordedEvent.InputTuple,
+      SettlementRecordedEvent.OutputTuple,
+      SettlementRecordedEvent.OutputObject
+    >;
+    SettlementRecorded: TypedContractEvent<
+      SettlementRecordedEvent.InputTuple,
+      SettlementRecordedEvent.OutputTuple,
+      SettlementRecordedEvent.OutputObject
     >;
 
     "Unpaused(address)": TypedContractEvent<

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { ApiError } from "../lib/api-error.js";
-import { redis } from "../lib/redis.js";
+import { redisGet, redisSetValue } from "../lib/redis.js";
 
 const SYMBOL_MAP = {
   USDC: "usd-coin",
@@ -14,7 +14,7 @@ export class RateService {
 
   async getInrRate(symbol: SupportedSymbol): Promise<number> {
     const cacheKey = `rate:${symbol}:inr`;
-    const cached = await redis.get(cacheKey);
+    const cached = await redisGet(cacheKey);
 
     if (cached) {
       return Number(cached);
@@ -37,7 +37,7 @@ export class RateService {
       throw new ApiError(502, `CoinGecko did not return INR rate for ${symbol}`);
     }
 
-    await redis.set(cacheKey, String(rate), "EX", 60);
+    await redisSetValue(cacheKey, String(rate), { ttlSeconds: 60 });
     return rate;
   }
 

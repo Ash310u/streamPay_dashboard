@@ -40,10 +40,11 @@ export class SettlementDomainService {
       throw new ApiError(400, error.message);
     }
 
-    const grouped = new Map<string, typeof sessions>();
+    const grouped = new Map<string, NonNullable<typeof sessions>>();
 
     for (const session of sessions ?? []) {
-      const merchantId = session.venues?.merchant_id;
+      const joinedVenue = Array.isArray(session.venues) ? session.venues[0] : session.venues;
+      const merchantId = joinedVenue?.merchant_id;
       if (!merchantId) continue;
       grouped.set(merchantId, [...(grouped.get(merchantId) ?? []), session]);
     }

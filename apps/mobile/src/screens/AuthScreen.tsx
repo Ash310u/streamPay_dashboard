@@ -8,6 +8,7 @@ export const AuthScreen = ({ navigation }: NativeStackScreenProps<any>) => {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -24,14 +25,20 @@ export const AuthScreen = ({ navigation }: NativeStackScreenProps<any>) => {
 
         <TextInput placeholder="Email" value={email} onChangeText={setEmail} style={styles.input} autoCapitalize="none" />
         <TextInput placeholder="Password" value={password} onChangeText={setPassword} style={styles.input} secureTextEntry />
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
         <Pressable
           style={styles.primaryButton}
           onPress={async () => {
-            if (mode === "signup") {
-              await supabase.auth.signUp({ email, password });
-            } else {
-              await supabase.auth.signInWithPassword({ email, password });
+            setError(null);
+            const result =
+              mode === "signup"
+                ? await supabase.auth.signUp({ email, password })
+                : await supabase.auth.signInWithPassword({ email, password });
+
+            if (result.error) {
+              setError(result.error.message);
+              return;
             }
 
             await registerForPushNotifications();
@@ -98,6 +105,11 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     marginBottom: 12,
     backgroundColor: "#ffffff"
+  },
+  errorText: {
+    marginBottom: 12,
+    color: "#dc2626",
+    fontSize: 13
   },
   primaryButton: {
     paddingVertical: 16,

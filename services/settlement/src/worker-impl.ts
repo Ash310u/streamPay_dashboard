@@ -1,6 +1,10 @@
 import { Worker, Queue } from "bullmq";
 import { createServiceSupabaseClient } from "@detrix/supabase-client";
-import { logger } from "../logger.js";
+
+const logger = {
+  info: (payload: unknown) => console.info(payload),
+  error: (payload: unknown) => console.error(payload)
+};
 
 const QUEUE_NAME = "settlement-t-plus-one";
 const connection = { url: process.env.REDIS_URL ?? "redis://localhost:6379" };
@@ -48,9 +52,10 @@ export const startWorker = () => {
 
       if (error) throw new Error(error.message);
 
-      const grouped = new Map<string, typeof sessions>();
+      const grouped = new Map<string, NonNullable<typeof sessions>>();
       for (const s of sessions ?? []) {
-        const mid = s.venues?.merchant_id;
+        const joinedVenue = Array.isArray(s.venues) ? s.venues[0] : s.venues;
+        const mid = joinedVenue?.merchant_id;
         if (!mid) continue;
         grouped.set(mid, [...(grouped.get(mid) ?? []), s]);
       }
@@ -97,11 +102,7 @@ export const startWorker = () => {
     {
       connection,
       concurrency: 1,
-      limiter: { max: 1, duration: 1000 },
-      defaultJobOptions: {
-        attempts: 3,
-        backoff: { type: "exponential", delay: 30_000 }
-      }
+      limiter: { max: 1, duration: 1000 }
     }
   );
 

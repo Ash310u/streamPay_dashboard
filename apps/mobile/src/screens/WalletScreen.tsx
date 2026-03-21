@@ -27,7 +27,7 @@ export const WalletScreen = () => {
     setLoading(true);
     try {
       const [w, txns] = await Promise.all([
-        mobileApiFetch<Wallet>("/wallet"),
+        mobileApiFetch<Wallet>("/wallet/balance"),
         mobileApiFetch<Transaction[]>("/wallet/transactions")
       ]);
       setWallet(w);
@@ -48,27 +48,33 @@ export const WalletScreen = () => {
         orderId: string;
         amount: number;
         keyId: string;
-        name: string;
-        description: string;
-      }>("/billing/order", { method: "POST", body: JSON.stringify({ amountInr: 500 }) });
+        currency: string;
+        mode: "live" | "demo";
+      }>("/wallet/topup/order", { method: "POST", body: JSON.stringify({ amountInr: 500, currency: "INR" }) });
 
-      // Razorpay React Native SDK checkout
-      // Dynamic import so the module resolves only when credentials exist
-      const RazorpayCheckout = (await import("react-native-razorpay")).default;
-      const result = await RazorpayCheckout.open({
-        key: order.keyId,
-        order_id: order.orderId,
-        name: order.name,
-        description: order.description,
-        amount: String(order.amount),
-        currency: "INR",
-        prefill: {}
+      let paymentId = `demo_${Date.now()}`;
+
+      if (order.mode === "live" && order.keyId) {
+        const RazorpayCheckout = (await import("react-native-razorpay")).default;
+        const result = await RazorpayCheckout.open({
+          key: order.keyId,
+          order_id: order.orderId,
+          name: "Detrix",
+          description: "Wallet top-up",
+          amount: String(order.amount),
+          currency: order.currency,
+          prefill: {}
+        });
+        paymentId = result?.razorpay_payment_id ?? paymentId;
+      }
+
+      await mobileApiFetch("/wallet/topup/verify", {
+        method: "POST",
+        body: JSON.stringify({ amountInr: 500, paymentId })
       });
 
-      if (result?.razorpay_payment_id) {
-        Alert.alert("Top-up successful!", "Your wallet has been credited.");
-        void fetchWallet();
-      }
+      Alert.alert("Top-up successful!", "Your wallet has been credited.");
+      void fetchWallet();
     } catch (err: unknown) {
       // Razorpay throws {code, description} on cancel
       const razErr = err as { description?: string } | null;

@@ -1,14 +1,10 @@
 import type { FastifyInstance } from "fastify";
-import Razorpay from "razorpay";
 import { topUpOrderSchema } from "@detrix/zod-schemas";
 import { env } from "../lib/env.js";
+import { ApiError } from "../lib/api-error.js";
 import { requireAuth, sendApiError } from "../lib/guards.js";
 import { WalletService } from "../services/wallet-service.js";
-
-const razorpay = new Razorpay({
-  key_id: env.RAZORPAY_KEY_ID,
-  key_secret: env.RAZORPAY_KEY_SECRET
-});
+import { createOrder, isConfigured as isRazorpayConfigured } from "../lib/razorpay.js";
 
 export const registerWalletRoutes = async (app: FastifyInstance) => {
   const walletService = new WalletService(app);
@@ -17,16 +13,45 @@ export const registerWalletRoutes = async (app: FastifyInstance) => {
     try {
       const user = requireAuth(request);
       const payload = topUpOrderSchema.parse(request.body);
-      const order = await razorpay.orders.create({
-        amount: Math.round(payload.amountInr * 100),
-        currency: payload.currency,
-        receipt: `topup_${user.id}_${Date.now()}`,
-        notes: {
-          userId: user.id
-        }
+      const exceedsKycThreshold = payload.amountInr > 10_000;
+      const { data: profile } = await app.supabase
+        .from("profiles")
+        .select("kyc_status")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (exceedsKycThreshold && profile?.kyc_status !== "verified") {
+        throw new ApiError(403, "KYC verification is required for top-ups above INR 10,000");
+      }
+
+      const receipt = `topup_${user.id}_${Date.now()}`;
+      const order = isRazorpayConfigured()
+        ? await createOrder(Math.round(payload.amountInr * 100), receipt, { userId: user.id })
+        : {
+            id: `demo_order_${Date.now()}`,
+            amount: Math.round(payload.amountInr * 100),
+            currency: payload.currency,
+            status: "created",
+            receipt
+          };
+
+      await app.supabase.from("wallet_top_up_orders").insert({
+        user_id: user.id,
+        amount_inr: payload.amountInr,
+        currency_code: payload.currency,
+        razorpay_order_id: order.id,
+        status: order.status
       });
 
-      return reply.send(order);
+      return reply.send({
+        orderId: order.id,
+        amount: order.amount,
+        currency: order.currency,
+        status: order.status,
+        receipt: order.receipt,
+        keyId: env.RAZORPAY_KEY_ID,
+        mode: isRazorpayConfigured() ? "live" : "demo"
+      });
     } catch (error) {
       return sendApiError(reply, error);
     }

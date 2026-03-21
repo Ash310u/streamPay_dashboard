@@ -37,6 +37,7 @@ create table public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   full_name text,
   phone text,
+  wallet_address text,
   role public.app_role not null default 'user',
   kyc_status public.kyc_status not null default 'pending',
   created_at timestamptz not null default timezone('utc', now()),
@@ -135,6 +136,7 @@ create table public.settlement_batches (
   net_inr numeric(24, 2) not null default 0,
   status public.settlement_status not null default 'pending',
   razorpay_payout_id text,
+  locked_rate_usdc numeric(24, 8),
   initiated_at timestamptz,
   completed_at timestamptz
 );
@@ -147,6 +149,7 @@ create table public.sessions (
   status public.session_status not null default 'enter_detected',
   trigger_mode public.trigger_mode not null default 'geofence',
   qr_nonce_used text,
+  pause_reason text,
   entry_lat numeric(10, 7),
   entry_lng numeric(10, 7),
   exit_lat numeric(10, 7),
@@ -199,6 +202,29 @@ create table public.notifications (
   body text not null,
   read boolean not null default false,
   created_at timestamptz not null default timezone('utc', now())
+);
+
+create table public.push_tokens (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  token text not null unique,
+  platform text not null,
+  device_name text,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
+);
+
+create table public.wallet_top_up_orders (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  amount_inr numeric(24, 2) not null,
+  currency_code text not null default 'INR',
+  razorpay_order_id text not null unique,
+  razorpay_payment_id text,
+  status text not null default 'created',
+  exchange_rate numeric(24, 8),
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now())
 );
 
 create table public.audit_logs (
@@ -254,6 +280,8 @@ create index idx_sessions_settlement_batch_id on public.sessions(settlement_batc
 create index idx_session_events_session_id on public.session_events(session_id, created_at desc);
 create index idx_settlement_batches_merchant_date on public.settlement_batches(merchant_id, batch_date desc);
 create index idx_notifications_user_id on public.notifications(user_id, created_at desc);
+create index idx_push_tokens_user_id on public.push_tokens(user_id, updated_at desc);
+create index idx_wallet_top_up_orders_user_id on public.wallet_top_up_orders(user_id, created_at desc);
 create index idx_operator_ledger_recorded_at on public.operator_ledger(recorded_at desc);
 
 create or replace function public.handle_new_user()
@@ -311,6 +339,10 @@ create trigger venues_set_updated_at before update on public.venues
 for each row execute function public.set_updated_at();
 create trigger sessions_set_updated_at before update on public.sessions
 for each row execute function public.set_updated_at();
+create trigger push_tokens_set_updated_at before update on public.push_tokens
+for each row execute function public.set_updated_at();
+create trigger wallet_top_up_orders_set_updated_at before update on public.wallet_top_up_orders
+for each row execute function public.set_updated_at();
 
 alter table public.profiles enable row level security;
 alter table public.wallets enable row level security;
@@ -324,6 +356,8 @@ alter table public.session_events enable row level security;
 alter table public.settlement_batches enable row level security;
 alter table public.tax_records enable row level security;
 alter table public.notifications enable row level security;
+alter table public.push_tokens enable row level security;
+alter table public.wallet_top_up_orders enable row level security;
 alter table public.audit_logs enable row level security;
 alter table public.venue_qr_codes enable row level security;
 alter table public.operator_ledger enable row level security;
@@ -455,6 +489,13 @@ for select using (user_id = auth.uid() or public.is_admin());
 create policy "notifications own update or admin" on public.notifications
 for update using (user_id = auth.uid() or public.is_admin())
 with check (user_id = auth.uid() or public.is_admin());
+
+create policy "push tokens own or admin" on public.push_tokens
+for all using (user_id = auth.uid() or public.is_admin())
+with check (user_id = auth.uid() or public.is_admin());
+
+create policy "wallet top up orders own or admin" on public.wallet_top_up_orders
+for select using (user_id = auth.uid() or public.is_admin());
 
 create policy "audit logs admin only" on public.audit_logs
 for select using (public.is_admin());

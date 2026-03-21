@@ -7,9 +7,13 @@ import { CustomerDashboardPage } from "./pages/CustomerDashboardPage";
 import { CustomerVenuesPage } from "./pages/CustomerVenuesPage";
 import { LandingPage } from "./pages/LandingPage";
 import { MerchantDashboardPage } from "./pages/MerchantDashboardPage";
+import { MerchantGeofencesPage } from "./pages/MerchantGeofencesPage";
+import { MerchantLiveSessionsPage } from "./pages/MerchantLiveSessionsPage";
+import { MerchantPricingPage } from "./pages/MerchantPricingPage";
 import { MerchantSettlementsPage } from "./pages/MerchantSettlementsPage";
 import { MerchantTaxAssistantPage } from "./pages/MerchantTaxAssistantPage";
 import { MerchantVenuesPage } from "./pages/MerchantVenuesPage";
+import { OperatorAnalyticsPage } from "./pages/OperatorAnalyticsPage";
 import { OperatorDashboardPage } from "./pages/OperatorDashboardPage";
 import { OperatorMerchantsPage } from "./pages/OperatorMerchantsPage";
 import { OperatorSettlementsPage } from "./pages/OperatorSettlementsPage";
@@ -124,6 +128,16 @@ export const App = () => {
         }
       />
       <Route
+        path="/app/merchant/geofences"
+        element={
+          <RoleGate allowed={["merchant"]} role={role}>
+            <AppShell role={role}>
+              <MerchantGeofencesPage />
+            </AppShell>
+          </RoleGate>
+        }
+      />
+      <Route
         path="/app/merchant/settlements"
         element={
           <RoleGate allowed={["merchant"]} role={role}>
@@ -169,6 +183,36 @@ export const App = () => {
           <RoleGate allowed={["admin"]} role={role}>
             <AppShell role={role}>
               <OperatorSettlementsPage />
+            </AppShell>
+          </RoleGate>
+        }
+      />
+      <Route
+        path="/app/merchant/sessions"
+        element={
+          <RoleGate allowed={["merchant"]} role={role}>
+            <AppShell role={role}>
+              <MerchantLiveSessionsPage />
+            </AppShell>
+          </RoleGate>
+        }
+      />
+      <Route
+        path="/app/merchant/pricing"
+        element={
+          <RoleGate allowed={["merchant"]} role={role}>
+            <AppShell role={role}>
+              <MerchantPricingPage />
+            </AppShell>
+          </RoleGate>
+        }
+      />
+      <Route
+        path="/app/operator/analytics"
+        element={
+          <RoleGate allowed={["admin"]} role={role}>
+            <AppShell role={role}>
+              <OperatorAnalyticsPage />
             </AppShell>
           </RoleGate>
         }

@@ -53,8 +53,21 @@ export class BlockchainAdapterService {
     return keccak256(toUtf8Bytes(value));
   }
 
+  private getMerchantRegistryMethod(name: "registerMerchant" | "updatePayoutAddress") {
+    return this.merchantRegistry[name] as (...args: unknown[]) => Promise<{ wait: () => Promise<unknown> }>;
+  }
+
+  private getSessionManagerMethod(name: "startSession" | "closeSession" | "flagDispute") {
+    return this.sessionManager[name] as (...args: unknown[]) => Promise<{ wait: () => Promise<unknown> }>;
+  }
+
+  private getSettlementAnchorMethod(name: "anchorSession" | "flagDispute") {
+    return this.settlementAnchor[name] as (...args: unknown[]) => Promise<{ wait: () => Promise<unknown> }>;
+  }
+
   async registerMerchant(params: { merchantId: string; payoutAddress: string; metadataHash: string }) {
-    const tx = await this.merchantRegistry.registerMerchant(
+    const registerMerchant = this.getMerchantRegistryMethod("registerMerchant");
+    const tx = await registerMerchant(
       this.hashId(params.merchantId),
       params.payoutAddress,
       this.hashId(params.metadataHash)
@@ -64,7 +77,8 @@ export class BlockchainAdapterService {
   }
 
   async startSessionStream(input: StartStreamInput) {
-    const tx = await this.sessionManager.startSession(
+    const startSession = this.getSessionManagerMethod("startSession");
+    const tx = await startSession(
       this.hashId(input.session.id),
       this.hashId(input.merchantId),
       this.hashId(input.venueId),
@@ -80,7 +94,8 @@ export class BlockchainAdapterService {
     sessionId: string;
     sessionHash: string;
   }) {
-    const tx = await this.sessionManager.closeSession(this.hashId(input.sessionId), this.hashId(input.sessionHash));
+    const closeSession = this.getSessionManagerMethod("closeSession");
+    const tx = await closeSession(this.hashId(input.sessionId), this.hashId(input.sessionHash));
     return tx.wait();
   }
 
@@ -94,7 +109,8 @@ export class BlockchainAdapterService {
     finalSettlement: FinalSettlement;
   }) {
     const settlementHash = this.hashId(JSON.stringify(input.finalSettlement));
-    const tx = await this.settlementAnchor.anchorSession(
+    const anchorSession = this.getSettlementAnchorMethod("anchorSession");
+    const tx = await anchorSession(
       this.hashId(input.sessionId),
       settlementHash,
       this.hashId(input.merchantId),
@@ -110,9 +126,11 @@ export class BlockchainAdapterService {
   async flagDispute(input: { sessionId: string; disputeReference: string }) {
     const sessionIdHash = this.hashId(input.sessionId);
     const disputeHash = this.hashId(input.disputeReference);
+    const flagSessionDispute = this.getSessionManagerMethod("flagDispute");
+    const flagSettlementDispute = this.getSettlementAnchorMethod("flagDispute");
     const [sessionTx, settlementTx] = await Promise.all([
-      this.sessionManager.flagDispute(sessionIdHash, disputeHash),
-      this.settlementAnchor.flagDispute(sessionIdHash, disputeHash)
+      flagSessionDispute(sessionIdHash, disputeHash),
+      flagSettlementDispute(sessionIdHash, disputeHash)
     ]);
 
     return Promise.all([sessionTx.wait(), settlementTx.wait()]);

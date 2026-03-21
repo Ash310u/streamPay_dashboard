@@ -1,5 +1,9 @@
 import { createServiceSupabaseClient } from "@detrix/supabase-client";
-import { logger } from "../logger.js";
+
+const logger = {
+  info: (payload: unknown) => console.info(payload),
+  warn: (payload: unknown) => console.warn(payload)
+};
 
 // ── Expo Push Notification ─────────────────────────────────────────────────
 

@@ -3,7 +3,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { env } from "../lib/env.js";
 import { ApiError } from "../lib/api-error.js";
 import { logger } from "../lib/logger.js";
-import { redis } from "../lib/redis.js";
+import { redisSetValue } from "../lib/redis.js";
 import { RateService } from "./rate-service.js";
 import { WalletService } from "./wallet-service.js";
 import { RealtimeEmitter } from "../lib/realtime.js";
@@ -44,7 +44,7 @@ export class WebhookService {
     const entityId =
       paymentEntity?.id ?? payoutEntity?.id ?? orderEntity?.id ?? `event_${Date.now()}`;
     const replayKey = `webhook:razorpay:${event}:${entityId}`;
-    const firstSeen = await redis.set(replayKey, "1", "EX", 60 * 60 * 24 * 7, "NX");
+    const firstSeen = await redisSetValue(replayKey, "1", { ttlSeconds: 60 * 60 * 24 * 7, nx: true });
 
     if (!firstSeen) {
       logger.info({ msg: "webhook_duplicate_skipped", event, entityId });

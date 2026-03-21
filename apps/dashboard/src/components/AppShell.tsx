@@ -13,6 +13,9 @@ const navByRole = {
   merchant: [
     { href: "/app/merchant", label: "Dashboard", icon: LayoutDashboard },
     { href: "/app/merchant/venues", label: "Venues", icon: MapPinned },
+    { href: "/app/merchant/geofences", label: "Geofences", icon: MapPinned },
+    { href: "/app/merchant/pricing", label: "Pricing", icon: CreditCard },
+    { href: "/app/merchant/sessions", label: "Sessions", icon: ScanQrCode },
     { href: "/app/merchant/settlements", label: "Settlements", icon: Receipt },
     { href: "/app/merchant/tax", label: "Tax", icon: CreditCard },
     { href: "/app/merchant", label: "Alerts", icon: Bell }
@@ -21,7 +24,7 @@ const navByRole = {
     { href: "/app/operator", label: "Dashboard", icon: LayoutDashboard },
     { href: "/app/operator/merchants", label: "Merchants", icon: ShieldCheck },
     { href: "/app/operator/settlements", label: "Settlements", icon: Receipt },
-    { href: "/app/operator", label: "Revenue", icon: CreditCard },
+    { href: "/app/operator/analytics", label: "Revenue", icon: CreditCard },
     { href: "/app/operator", label: "Alerts", icon: Bell }
   ]
 } as const;

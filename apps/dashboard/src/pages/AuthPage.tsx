@@ -41,7 +41,13 @@ export const AuthPage = () => {
       }
 
       const profile = await supabase.from("profiles").select("role").eq("id", result.data.user.id).maybeSingle();
-      navigate(profile.data?.role === "merchant" ? "/app/merchant" : "/app/customer");
+      navigate(
+        profile.data?.role === "merchant"
+          ? "/app/merchant"
+          : profile.data?.role === "admin"
+          ? "/app/operator"
+          : "/app/customer"
+      );
     }
   };
 

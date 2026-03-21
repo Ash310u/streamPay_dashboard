@@ -4,7 +4,7 @@ import { locationEventSchema, qrStartSchema, qrStopSchema } from "@detrix/zod-sc
 import { SessionEngineService } from "@detrix/session-engine";
 import { signQrPayload } from "@detrix/qr-utils";
 import { requireAuth, requireRole, sendApiError } from "../lib/guards.js";
-import { redis } from "../lib/redis.js";
+import { redisDelete, redisSetValue } from "../lib/redis.js";
 import { SessionService } from "../services/session-service.js";
 
 const engine = new SessionEngineService();
@@ -36,7 +36,7 @@ export const registerSessionRoutes = async (app: FastifyInstance) => {
       const user = requireAuth(request);
       const payload = qrStartSchema.parse(request.body);
       const nonceKey = `qr:entry:${payload.token.nonce}`;
-      const nonceReserved = await redis.set(nonceKey, user.id, "EX", 600, "NX");
+      const nonceReserved = await redisSetValue(nonceKey, user.id, { ttlSeconds: 600, nx: true });
 
       if (!nonceReserved) {
         return reply.status(409).send({ error: "QR nonce already used" });
@@ -58,7 +58,7 @@ export const registerSessionRoutes = async (app: FastifyInstance) => {
         : false;
 
       if (!valid) {
-        await redis.del(nonceKey);
+        await redisDelete(nonceKey);
         return reply.status(400).send({ error: "Invalid or expired QR token" });
       }
 
@@ -80,7 +80,7 @@ export const registerSessionRoutes = async (app: FastifyInstance) => {
       const user = requireAuth(request);
       const payload = qrStopSchema.parse(request.body);
       const nonceKey = `qr:exit:${payload.token.nonce}`;
-      const nonceReserved = await redis.set(nonceKey, user.id, "EX", 600, "NX");
+      const nonceReserved = await redisSetValue(nonceKey, user.id, { ttlSeconds: 600, nx: true });
 
       if (!nonceReserved) {
         return reply.status(409).send({ error: "QR nonce already used" });
@@ -176,7 +176,57 @@ export const registerSessionRoutes = async (app: FastifyInstance) => {
     }
   });
 
+  app.get("/sessions/:id", async (request, reply) => {
+    try {
+      const user = requireAuth(request);
+      const sessionId = (request.params as { id: string }).id;
+      const { data, error } = await app.supabase
+        .from("sessions")
+        .select("*, venues(name,city,address)")
+        .eq("id", sessionId)
+        .maybeSingle();
+
+      if (error) {
+        return reply.status(400).send({ error: error.message });
+      }
+
+      if (!data || (data.user_id !== user.id && user.role !== "admin")) {
+        return reply.status(404).send({ error: "Session not found" });
+      }
+
+      return reply.send(data);
+    } catch (error) {
+      return sendApiError(reply, error);
+    }
+  });
+
+  app.get("/sessions/:id/charge", async (request, reply) => {
+    try {
+      const user = requireAuth(request);
+      const sessionId = (request.params as { id: string }).id;
+      const snapshot = await sessionService.getChargeSnapshot(user.id, sessionId);
+      return reply.send(snapshot);
+    } catch (error) {
+      return sendApiError(reply, error);
+    }
+  });
+
   app.post("/sessions/:id/checkout", async (request, reply) => {
+    try {
+      const user = requireAuth(request);
+      const sessionId = (request.params as { id: string }).id;
+      const session = await sessionService.selfCheckout({
+        userId: user.id,
+        sessionId
+      });
+
+      return reply.send(session);
+    } catch (error) {
+      return sendApiError(reply, error);
+    }
+  });
+
+  app.post("/sessions/:id/close", async (request, reply) => {
     try {
       const user = requireAuth(request);
       const sessionId = (request.params as { id: string }).id;

@@ -210,18 +210,30 @@ export const registerVenueRoutes = async (app: FastifyInstance) => {
   app.put("/pricing/:id", async (request, reply) => {
     try {
       requireRole(request, ["merchant", "admin"]);
-      const payload = pricingPlanSchema.parse(request.body);
+      const rawBody = (request.body ?? {}) as Record<string, unknown>;
       const pricingId = (request.params as { id: string }).id;
-      const { data, error } = await app.supabase.from("pricing_plans").update({
-        name: payload.name,
-        billing_unit: payload.billingUnit,
-        rate_crypto: payload.rateCrypto,
-        rate_inr_equivalent: payload.rateInrEquivalent,
-        base_fee_inr: payload.baseFeeInr,
-        minimum_charge_inr: payload.minimumChargeInr,
-        maximum_cap_inr: payload.maximumCapInr,
-        grace_period_seconds: payload.gracePeriodSeconds
-      }).eq("id", pricingId).select("*").single();
+
+      const update =
+        rawBody.name || rawBody.billingUnit || rawBody.rateCrypto || rawBody.rateInrEquivalent
+          ? (() => {
+              const payload = pricingPlanSchema.parse(request.body);
+              return {
+                name: payload.name,
+                billing_unit: payload.billingUnit,
+                rate_crypto: payload.rateCrypto,
+                rate_inr_equivalent: payload.rateInrEquivalent,
+                base_fee_inr: payload.baseFeeInr,
+                minimum_charge_inr: payload.minimumChargeInr,
+                maximum_cap_inr: payload.maximumCapInr,
+                grace_period_seconds: payload.gracePeriodSeconds,
+                ...(typeof rawBody.isActive === "boolean" ? { is_active: rawBody.isActive } : {})
+              };
+            })()
+          : {
+              ...(typeof rawBody.isActive === "boolean" ? { is_active: rawBody.isActive } : {})
+            };
+
+      const { data, error } = await app.supabase.from("pricing_plans").update(update).eq("id", pricingId).select("*").single();
       if (error) {
         return reply.status(400).send({ error: error.message });
       }
