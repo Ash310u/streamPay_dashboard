@@ -1,6 +1,7 @@
 FROM node:20-alpine
 WORKDIR /app
-COPY . .
 RUN corepack enable
-CMD ["sh", "-c", "pnpm install && pnpm --filter @detrix/api dev"]
-
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install
+COPY . .
+CMD ["pnpm", "--filter", "@detrix/api", "dev"]
