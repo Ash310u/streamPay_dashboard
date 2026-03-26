@@ -67,7 +67,7 @@ export const registerAuthRoutes = async (app: FastifyInstance) => {
   // ── Google OAuth ─────────────────────────────────────────────────
 
   app.get("/auth/google", async (_request, reply) => {
-    const redirectTo = `${process.env.API_BASE_URL ?? "http://localhost:3001"}/auth/google/callback`;
+    const redirectTo = `${process.env.API_BASE_URL ?? "http://localhost:4000"}/auth/google/callback`;
     const { data, error } = await authClient.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo }
@@ -123,7 +123,7 @@ export const registerAuthRoutes = async (app: FastifyInstance) => {
   // ── GitHub OAuth ─────────────────────────────────────────────────
 
   app.get("/auth/github", async (_request, reply) => {
-    const redirectTo = `${process.env.API_BASE_URL ?? "http://localhost:3001"}/auth/github/callback`;
+    const redirectTo = `${process.env.API_BASE_URL ?? "http://localhost:4000"}/auth/github/callback`;
     const { data, error } = await authClient.auth.signInWithOAuth({
       provider: "github",
       options: { redirectTo }

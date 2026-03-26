@@ -1,12 +1,22 @@
 import { config } from "dotenv";
+import { existsSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { z } from "zod";
 
-config();
+const currentDir = dirname(fileURLToPath(import.meta.url));
+const workspaceRootEnvPath = resolve(currentDir, "../../../../.env");
+const serviceEnvPath = resolve(currentDir, "../../.env");
+
+config({ path: workspaceRootEnvPath });
+
+if (existsSync(serviceEnvPath)) {
+  config({ path: serviceEnvPath, override: true });
+}
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().default(4000),
-  APP_BASE_URL: z.url(),
   SUPABASE_URL: z.url(),
   SUPABASE_ANON_KEY: z.string().min(1),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
@@ -44,4 +54,3 @@ const envSchema = z.object({
 });
 
 export const env = envSchema.parse(process.env);
-

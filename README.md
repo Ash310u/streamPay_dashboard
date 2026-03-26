@@ -143,9 +143,9 @@ supabase/
 - `services/blockchain-adapter` signs and sends transactions to those contracts.
 - `services/api/src/services/session-service.ts` can call the blockchain adapter when `SESSION_BILLING_PROVIDER=superfluid` and the contract addresses are configured.
 
-## Required Environment Variables
+## Environment Variables
 
-Core:
+Minimal local `pnpm dev` setup:
 
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
@@ -157,21 +157,25 @@ Core:
 - `EXPO_PUBLIC_SUPABASE_ANON_KEY`
 - `EXPO_PUBLIC_API_URL`
 
-Payments and rates:
+Useful local overrides:
+
+- `API_BASE_URL`
+- `DASHBOARD_URL`
+- `REDIS_URL`
+- `PLATFORM_FEE_RATE`
+
+Optional feature-specific integrations:
 
 - `RAZORPAY_KEY_ID`
 - `RAZORPAY_KEY_SECRET`
 - `RAZORPAY_WEBHOOK_SECRET`
+- `RAZORPAY_ACCOUNT_NUMBER`
 - `COINGECKO_API_KEY`
-- `PLATFORM_FEE_RATE`
-
-Infrastructure:
-
-- `REDIS_URL`
+- `LLM_API_URL`
+- `LLM_API_KEY`
+- `RESEND_API_KEY`
+- `EXPO_ACCESS_TOKEN`
 - `SENTRY_DSN`
-
-Blockchain:
-
 - `SESSION_BILLING_PROVIDER`
 - `POLYGON_RPC_URL`
 - `SUPERFLUID_PRIVATE_KEY`
