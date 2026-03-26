@@ -23,13 +23,19 @@ type UserRole = "user" | "merchant" | "admin";
 const RoleGate = ({
   allowed,
   role,
+  isInitializing,
   children
 }: {
   allowed: UserRole[];
   role: UserRole | null;
+  isInitializing: boolean;
   children: ReactElement;
 }) => {
   const location = useLocation();
+
+  if (isInitializing) {
+    return <div className="min-h-screen flex items-center justify-center bg-aurora">Loading...</div>;
+  }
 
   if (!role) {
     return <Navigate to="/auth" replace state={{ from: location.pathname }} />;
@@ -44,6 +50,7 @@ const RoleGate = ({
 
 export const App = () => {
   const [role, setRole] = useState<UserRole | null>(null);
+  const [isInitializing, setIsInitializing] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -53,12 +60,14 @@ export const App = () => {
 
       if (!userId) {
         setRole(null);
+        setIsInitializing(false);
         return;
       }
 
       const profile = await supabase.from("profiles").select("role").eq("id", userId).maybeSingle();
       const nextRole = (profile.data?.role ?? "user") as UserRole;
       setRole(nextRole);
+      setIsInitializing(false);
     };
 
     void loadRole();
@@ -68,14 +77,20 @@ export const App = () => {
 
       if (!userId) {
         setRole(null);
-        navigate("/");
+        setIsInitializing(false);
+        if (_event === "SIGNED_OUT") {
+          navigate("/");
+        }
         return;
       }
 
       const profile = await supabase.from("profiles").select("role").eq("id", userId).maybeSingle();
       const nextRole = (profile.data?.role ?? "user") as UserRole;
       setRole(nextRole);
-      navigate(nextRole === "merchant" ? "/app/merchant" : nextRole === "admin" ? "/app/operator" : "/app/customer");
+      setIsInitializing(false);
+      if (_event === "SIGNED_IN") {
+        navigate(nextRole === "merchant" ? "/app/merchant" : nextRole === "admin" ? "/app/operator" : "/app/customer");
+      }
     });
 
     return () => {
@@ -90,7 +105,7 @@ export const App = () => {
       <Route
         path="/app/customer"
         element={
-          <RoleGate allowed={["user"]} role={role}>
+          <RoleGate allowed={["user"]} role={role} isInitializing={isInitializing}>
             <AppShell role={role}>
               <CustomerDashboardPage />
             </AppShell>
@@ -100,7 +115,7 @@ export const App = () => {
       <Route
         path="/app/customer/venues"
         element={
-          <RoleGate allowed={["user"]} role={role}>
+          <RoleGate allowed={["user"]} role={role} isInitializing={isInitializing}>
             <AppShell role={role}>
               <CustomerVenuesPage />
             </AppShell>
@@ -110,7 +125,7 @@ export const App = () => {
       <Route
         path="/app/merchant"
         element={
-          <RoleGate allowed={["merchant"]} role={role}>
+          <RoleGate allowed={["merchant"]} role={role} isInitializing={isInitializing}>
             <AppShell role={role}>
               <MerchantDashboardPage />
             </AppShell>
@@ -120,7 +135,7 @@ export const App = () => {
       <Route
         path="/app/merchant/venues"
         element={
-          <RoleGate allowed={["merchant"]} role={role}>
+          <RoleGate allowed={["merchant"]} role={role} isInitializing={isInitializing}>
             <AppShell role={role}>
               <MerchantVenuesPage />
             </AppShell>
@@ -130,7 +145,7 @@ export const App = () => {
       <Route
         path="/app/merchant/geofences"
         element={
-          <RoleGate allowed={["merchant"]} role={role}>
+          <RoleGate allowed={["merchant"]} role={role} isInitializing={isInitializing}>
             <AppShell role={role}>
               <MerchantGeofencesPage />
             </AppShell>
@@ -140,7 +155,7 @@ export const App = () => {
       <Route
         path="/app/merchant/settlements"
         element={
-          <RoleGate allowed={["merchant"]} role={role}>
+          <RoleGate allowed={["merchant"]} role={role} isInitializing={isInitializing}>
             <AppShell role={role}>
               <MerchantSettlementsPage />
             </AppShell>
@@ -150,7 +165,7 @@ export const App = () => {
       <Route
         path="/app/merchant/tax"
         element={
-          <RoleGate allowed={["merchant"]} role={role}>
+          <RoleGate allowed={["merchant"]} role={role} isInitializing={isInitializing}>
             <AppShell role={role}>
               <MerchantTaxAssistantPage />
             </AppShell>
@@ -160,7 +175,7 @@ export const App = () => {
       <Route
         path="/app/operator"
         element={
-          <RoleGate allowed={["admin"]} role={role}>
+          <RoleGate allowed={["admin"]} role={role} isInitializing={isInitializing}>
             <AppShell role={role}>
               <OperatorDashboardPage />
             </AppShell>
@@ -170,7 +185,7 @@ export const App = () => {
       <Route
         path="/app/operator/merchants"
         element={
-          <RoleGate allowed={["admin"]} role={role}>
+          <RoleGate allowed={["admin"]} role={role} isInitializing={isInitializing}>
             <AppShell role={role}>
               <OperatorMerchantsPage />
             </AppShell>
@@ -180,7 +195,7 @@ export const App = () => {
       <Route
         path="/app/operator/settlements"
         element={
-          <RoleGate allowed={["admin"]} role={role}>
+          <RoleGate allowed={["admin"]} role={role} isInitializing={isInitializing}>
             <AppShell role={role}>
               <OperatorSettlementsPage />
             </AppShell>
@@ -190,7 +205,7 @@ export const App = () => {
       <Route
         path="/app/merchant/sessions"
         element={
-          <RoleGate allowed={["merchant"]} role={role}>
+          <RoleGate allowed={["merchant"]} role={role} isInitializing={isInitializing}>
             <AppShell role={role}>
               <MerchantLiveSessionsPage />
             </AppShell>
@@ -200,7 +215,7 @@ export const App = () => {
       <Route
         path="/app/merchant/pricing"
         element={
-          <RoleGate allowed={["merchant"]} role={role}>
+          <RoleGate allowed={["merchant"]} role={role} isInitializing={isInitializing}>
             <AppShell role={role}>
               <MerchantPricingPage />
             </AppShell>
@@ -210,7 +225,7 @@ export const App = () => {
       <Route
         path="/app/operator/analytics"
         element={
-          <RoleGate allowed={["admin"]} role={role}>
+          <RoleGate allowed={["admin"]} role={role} isInitializing={isInitializing}>
             <AppShell role={role}>
               <OperatorAnalyticsPage />
             </AppShell>
