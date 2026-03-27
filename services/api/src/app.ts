@@ -12,17 +12,18 @@ import { createRealtimeServer } from "./lib/realtime.js";
 import type { AuthenticatedUser } from "./types.js";
 import { prometheusPlugin2 as prometheusPlugin } from "./plugins/prometheus.js";
 import { sentryFastifyPlugin } from "./plugins/sentry.js";
-import { registerAdminRoutes } from "./routes/admin.js";
-import { registerAnalyticsRoutes } from "./routes/analytics.js";
-import { registerAuthRoutes } from "./routes/auth.js";
-import { registerBillingRoutes } from "./routes/billing.js";
-import { registerMerchantRoutes } from "./routes/merchants.js";
-import { registerSessionRoutes } from "./routes/sessions.js";
+
 import { registerTaxRoutes } from "./routes/tax.js";
+import { registerAuthRoutes } from "./routes/auth.js";
 import { registerUserRoutes } from "./routes/users.js";
+import { registerAdminRoutes } from "./routes/admin.js";
 import { registerVenueRoutes } from "./routes/venues.js";
 import { registerWalletRoutes } from "./routes/wallet.js";
+import { registerBillingRoutes } from "./routes/billing.js";
+import { registerSessionRoutes } from "./routes/sessions.js";
 import { registerWebhookRoutes } from "./routes/webhooks.js";
+import { registerMerchantRoutes } from "./routes/merchants.js";
+import { registerAnalyticsRoutes } from "./routes/analytics.js";
 import { registerNotificationRoutes } from "./routes/notifications.js";
 
 declare module "fastify" {
