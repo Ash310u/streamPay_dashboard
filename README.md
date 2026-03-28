@@ -110,6 +110,10 @@ infra/
 supabase/
 ```
 
+## API Reference
+
+- Dedicated API route documentation lives in `services/api/README.md`.
+
 ## Local Setup
 
 1. Copy `.env.example` to `.env`.
