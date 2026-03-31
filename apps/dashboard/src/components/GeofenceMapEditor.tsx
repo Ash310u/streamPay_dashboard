@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { apiFetch } from "../lib/api";
+import { useGetVenueGeofencesQuery, useCreateGeofenceMutation } from "../store/api";
 
 type Geofence = {
   id?: string;
@@ -31,10 +30,8 @@ export const GeofenceMapEditor = ({ venueId, lat, lng, onSaved }: Props) => {
   const mapInstance = useRef<unknown>(null);
   const shapeLayer = useRef<unknown>(null);
 
-  const geofenceQuery = useQuery({
-    queryKey: ["geofence", venueId],
-    queryFn: () => apiFetch<Geofence[]>(`/venues/${venueId}/geofences`)
-  });
+  const { data: geofences } = useGetVenueGeofencesQuery(venueId);
+  const [createGeofence] = useCreateGeofenceMutation();
 
   // Dynamically load Leaflet from CDN
   useEffect(() => {
@@ -56,7 +53,7 @@ export const GeofenceMapEditor = ({ venueId, lat, lng, onSaved }: Props) => {
 
   // Hydrate from existing geofence
   useEffect(() => {
-    const existing = geofenceQuery.data?.[0];
+    const existing = geofences?.[0];
     if (!existing) return;
     setMode(existing.type);
     if (existing.type === "circle") {
@@ -66,7 +63,7 @@ export const GeofenceMapEditor = ({ venueId, lat, lng, onSaved }: Props) => {
     } else if (existing.polygon_coordinates) {
       setPolygonCoords(existing.polygon_coordinates);
     }
-  }, [geofenceQuery.data]);
+  }, [geofences]);
 
   // Initialise map
   useEffect(() => {
@@ -122,10 +119,7 @@ export const GeofenceMapEditor = ({ venueId, lat, lng, onSaved }: Props) => {
           ? { type: "circle", centerLat: circleLat, centerLng: circleLng, radiusMeters }
           : { type: "polygon", polygonCoordinates: polygonCoords };
 
-      await apiFetch(`/venues/${venueId}/geofences`, {
-        method: "POST",
-        body: JSON.stringify(body)
-      });
+      await createGeofence({ venueId, body }).unwrap();
 
       setStatus("Geofence saved!");
       onSaved?.();
@@ -144,9 +138,8 @@ export const GeofenceMapEditor = ({ venueId, lat, lng, onSaved }: Props) => {
           <button
             key={m}
             onClick={() => { setMode(m); setPolygonCoords([]); }}
-            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-              mode === m ? "bg-violet text-white" : "bg-white/55 text-ink"
-            }`}
+            className={`rounded-full px-4 py-2 text-sm font-semibold transition ${mode === m ? "bg-violet text-white" : "bg-white/55 text-ink"
+              }`}
           >
             {m === "circle" ? "⭕ Circle" : "✏️ Polygon"}
           </button>

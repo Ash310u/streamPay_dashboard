@@ -1,8 +1,9 @@
-import { useEffect, useState, type ReactElement } from "react";
+import { useEffect, type ReactElement } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "./lib/supabase";
 import { AppShell } from "./components/AppShell";
 import { AuthPage } from "./pages/AuthPage";
+import { AuthCallbackPage } from "./pages/AuthCallbackPage";
 import { CustomerDashboardPage } from "./pages/CustomerDashboardPage";
 import { CustomerVenuesPage } from "./pages/CustomerVenuesPage";
 import { LandingPage } from "./pages/LandingPage";
@@ -17,24 +18,23 @@ import { OperatorAnalyticsPage } from "./pages/OperatorAnalyticsPage";
 import { OperatorDashboardPage } from "./pages/OperatorDashboardPage";
 import { OperatorMerchantsPage } from "./pages/OperatorMerchantsPage";
 import { OperatorSettlementsPage } from "./pages/OperatorSettlementsPage";
+import { AnimatePresence } from "framer-motion";
+import { clearAuth, getAppPathForRole, selectAuth, syncAuthSession, type UserRole } from "./store/authSlice";
+import { useAppDispatch, useAppSelector } from "./store";
 
-type UserRole = "user" | "merchant" | "admin";
-
-const RoleGate = ({
-  allowed,
-  role,
-  isInitializing,
-  children
-}: {
+const RoleGate = ({ allowed, children }: {
   allowed: UserRole[];
-  role: UserRole | null;
-  isInitializing: boolean;
   children: ReactElement;
 }) => {
   const location = useLocation();
+  const { isReady, role } = useAppSelector(selectAuth);
 
-  if (isInitializing) {
-    return <div className="min-h-screen flex items-center justify-center bg-aurora">Loading...</div>;
+  if (!isReady) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-obsidian text-slate-400">
+        Loading your dashboard...
+      </div>
+    );
   }
 
   if (!role) {
@@ -42,196 +42,182 @@ const RoleGate = ({
   }
 
   if (!allowed.includes(role)) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={getAppPathForRole(role)} replace />;
   }
 
   return children;
 };
 
 export const App = () => {
-  const [role, setRole] = useState<UserRole | null>(null);
-  const [isInitializing, setIsInitializing] = useState(true);
+  const dispatch = useAppDispatch();
+  const { isReady, role } = useAppSelector(selectAuth);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
-    const loadRole = async () => {
-      const { data } = await supabase.auth.getSession();
-      const userId = data.session?.user.id;
+    void dispatch(syncAuthSession());
 
-      if (!userId) {
-        setRole(null);
-        setIsInitializing(false);
+    const subscription = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session?.user) {
+        dispatch(clearAuth());
         return;
       }
 
-      const profile = await supabase.from("profiles").select("role").eq("id", userId).maybeSingle();
-      const nextRole = (profile.data?.role ?? "user") as UserRole;
-      setRole(nextRole);
-      setIsInitializing(false);
-    };
-
-    void loadRole();
-
-    const subscription = supabase.auth.onAuthStateChange(async (_event, session) => {
-      const userId = session?.user.id;
-
-      if (!userId) {
-        setRole(null);
-        setIsInitializing(false);
-        if (_event === "SIGNED_OUT") {
-          navigate("/");
-        }
-        return;
-      }
-
-      const profile = await supabase.from("profiles").select("role").eq("id", userId).maybeSingle();
-      const nextRole = (profile.data?.role ?? "user") as UserRole;
-      setRole(nextRole);
-      setIsInitializing(false);
-      if (_event === "SIGNED_IN") {
-        navigate(nextRole === "merchant" ? "/app/merchant" : nextRole === "admin" ? "/app/operator" : "/app/customer");
-      }
+      void dispatch(syncAuthSession({ session }));
     });
 
     return () => {
       subscription.data.subscription.unsubscribe();
     };
-  }, [navigate]);
+  }, [dispatch]);
+
+  useEffect(() => {
+    if (!isReady || !role) {
+      return;
+    }
+
+    if (location.pathname === "/" || location.pathname === "/auth" || location.pathname === "/auth/callback") {
+      navigate(getAppPathForRole(role), { replace: true });
+    }
+  }, [isReady, location.pathname, navigate, role]);
 
   return (
-    <Routes>
-      <Route path="/" element={<LandingPage role={role} />} />
-      <Route path="/auth" element={<AuthPage />} />
-      <Route
-        path="/app/customer"
-        element={
-          <RoleGate allowed={["user"]} role={role} isInitializing={isInitializing}>
-            <AppShell role={role}>
-              <CustomerDashboardPage />
-            </AppShell>
-          </RoleGate>
-        }
-      />
-      <Route
-        path="/app/customer/venues"
-        element={
-          <RoleGate allowed={["user"]} role={role} isInitializing={isInitializing}>
-            <AppShell role={role}>
-              <CustomerVenuesPage />
-            </AppShell>
-          </RoleGate>
-        }
-      />
-      <Route
-        path="/app/merchant"
-        element={
-          <RoleGate allowed={["merchant"]} role={role} isInitializing={isInitializing}>
-            <AppShell role={role}>
-              <MerchantDashboardPage />
-            </AppShell>
-          </RoleGate>
-        }
-      />
-      <Route
-        path="/app/merchant/venues"
-        element={
-          <RoleGate allowed={["merchant"]} role={role} isInitializing={isInitializing}>
-            <AppShell role={role}>
-              <MerchantVenuesPage />
-            </AppShell>
-          </RoleGate>
-        }
-      />
-      <Route
-        path="/app/merchant/geofences"
-        element={
-          <RoleGate allowed={["merchant"]} role={role} isInitializing={isInitializing}>
-            <AppShell role={role}>
-              <MerchantGeofencesPage />
-            </AppShell>
-          </RoleGate>
-        }
-      />
-      <Route
-        path="/app/merchant/settlements"
-        element={
-          <RoleGate allowed={["merchant"]} role={role} isInitializing={isInitializing}>
-            <AppShell role={role}>
-              <MerchantSettlementsPage />
-            </AppShell>
-          </RoleGate>
-        }
-      />
-      <Route
-        path="/app/merchant/tax"
-        element={
-          <RoleGate allowed={["merchant"]} role={role} isInitializing={isInitializing}>
-            <AppShell role={role}>
-              <MerchantTaxAssistantPage />
-            </AppShell>
-          </RoleGate>
-        }
-      />
-      <Route
-        path="/app/operator"
-        element={
-          <RoleGate allowed={["admin"]} role={role} isInitializing={isInitializing}>
-            <AppShell role={role}>
-              <OperatorDashboardPage />
-            </AppShell>
-          </RoleGate>
-        }
-      />
-      <Route
-        path="/app/operator/merchants"
-        element={
-          <RoleGate allowed={["admin"]} role={role} isInitializing={isInitializing}>
-            <AppShell role={role}>
-              <OperatorMerchantsPage />
-            </AppShell>
-          </RoleGate>
-        }
-      />
-      <Route
-        path="/app/operator/settlements"
-        element={
-          <RoleGate allowed={["admin"]} role={role} isInitializing={isInitializing}>
-            <AppShell role={role}>
-              <OperatorSettlementsPage />
-            </AppShell>
-          </RoleGate>
-        }
-      />
-      <Route
-        path="/app/merchant/sessions"
-        element={
-          <RoleGate allowed={["merchant"]} role={role} isInitializing={isInitializing}>
-            <AppShell role={role}>
-              <MerchantLiveSessionsPage />
-            </AppShell>
-          </RoleGate>
-        }
-      />
-      <Route
-        path="/app/merchant/pricing"
-        element={
-          <RoleGate allowed={["merchant"]} role={role} isInitializing={isInitializing}>
-            <AppShell role={role}>
-              <MerchantPricingPage />
-            </AppShell>
-          </RoleGate>
-        }
-      />
-      <Route
-        path="/app/operator/analytics"
-        element={
-          <RoleGate allowed={["admin"]} role={role} isInitializing={isInitializing}>
-            <AppShell role={role}>
-              <OperatorAnalyticsPage />
-            </AppShell>
-          </RoleGate>
-        }
-      />
-    </Routes>
+    <AnimatePresence mode="wait">
+      <Routes location={location} key={location.pathname}>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/auth" element={<AuthPage />} />
+        <Route path="/auth/callback" element={<AuthCallbackPage />} />
+        <Route
+          path="/app/customer"
+          element={
+            <RoleGate allowed={["user"]}>
+              <AppShell>
+                <CustomerDashboardPage />
+              </AppShell>
+            </RoleGate>
+          }
+        />
+        <Route
+          path="/app/customer/venues"
+          element={
+            <RoleGate allowed={["user"]}>
+              <AppShell>
+                <CustomerVenuesPage />
+              </AppShell>
+            </RoleGate>
+          }
+        />
+        <Route
+          path="/app/merchant"
+          element={
+            <RoleGate allowed={["merchant"]}>
+              <AppShell>
+                <MerchantDashboardPage />
+              </AppShell>
+            </RoleGate>
+          }
+        />
+        <Route
+          path="/app/merchant/venues"
+          element={
+            <RoleGate allowed={["merchant"]}>
+              <AppShell>
+                <MerchantVenuesPage />
+              </AppShell>
+            </RoleGate>
+          }
+        />
+        <Route
+          path="/app/merchant/geofences"
+          element={
+            <RoleGate allowed={["merchant"]}>
+              <AppShell>
+                <MerchantGeofencesPage />
+              </AppShell>
+            </RoleGate>
+          }
+        />
+        <Route
+          path="/app/merchant/settlements"
+          element={
+            <RoleGate allowed={["merchant"]}>
+              <AppShell>
+                <MerchantSettlementsPage />
+              </AppShell>
+            </RoleGate>
+          }
+        />
+        <Route
+          path="/app/merchant/tax"
+          element={
+            <RoleGate allowed={["merchant"]}>
+              <AppShell>
+                <MerchantTaxAssistantPage />
+              </AppShell>
+            </RoleGate>
+          }
+        />
+        <Route
+          path="/app/operator"
+          element={
+            <RoleGate allowed={["admin"]}>
+              <AppShell>
+                <OperatorDashboardPage />
+              </AppShell>
+            </RoleGate>
+          }
+        />
+        <Route
+          path="/app/operator/merchants"
+          element={
+            <RoleGate allowed={["admin"]}>
+              <AppShell>
+                <OperatorMerchantsPage />
+              </AppShell>
+            </RoleGate>
+          }
+        />
+        <Route
+          path="/app/operator/settlements"
+          element={
+            <RoleGate allowed={["admin"]}>
+              <AppShell>
+                <OperatorSettlementsPage />
+              </AppShell>
+            </RoleGate>
+          }
+        />
+        <Route
+          path="/app/merchant/sessions"
+          element={
+            <RoleGate allowed={["merchant"]}>
+              <AppShell>
+                <MerchantLiveSessionsPage />
+              </AppShell>
+            </RoleGate>
+          }
+        />
+        <Route
+          path="/app/merchant/pricing"
+          element={
+            <RoleGate allowed={["merchant"]}>
+              <AppShell>
+                <MerchantPricingPage />
+              </AppShell>
+            </RoleGate>
+          }
+        />
+        <Route
+          path="/app/operator/analytics"
+          element={
+            <RoleGate allowed={["admin"]}>
+              <AppShell>
+                <OperatorAnalyticsPage />
+              </AppShell>
+            </RoleGate>
+          }
+        />
+      </Routes>
+    </AnimatePresence>
   );
 };

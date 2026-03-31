@@ -1,30 +1,15 @@
-import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { apiFetch } from "../lib/api";
-
-type LiveSession = {
-  id: string;
-  user_id: string;
-  venue_id: string;
-  status: string;
-  entry_time: string;
-  inr_equivalent: string;
-  crypto_charged: string;
-};
+import { useGetMerchantSessionsQuery, useLazyExportMerchantRevenueQuery } from "../store/api";
 
 export const MerchantLiveSessionsPage = () => {
   const [filter, setFilter] = useState<"all" | "active" | "closed">("active");
+  const [triggerExport] = useLazyExportMerchantRevenueQuery();
 
-  const { data: sessions = [], isLoading, refetch } = useQuery({
-    queryKey: ["merchant-live-sessions"],
-    queryFn: () => apiFetch<LiveSession[]>("/merchants/me/sessions"),
-    refetchInterval: 10_000 // poll every 10 s
+  const { data: sessions = [], isLoading, isError, refetch } = useGetMerchantSessionsQuery(filter === "all" ? undefined : filter, {
+    pollingInterval: 10000
   });
 
-  const filtered = useMemo(() =>
-    sessions.filter((s) => filter === "all" || s.status === filter),
-    [sessions, filter]
-  );
+  const filtered = useMemo(() => sessions, [sessions]);
 
   const calcDuration = (entry: string) => {
     const secs = Math.floor((Date.now() - new Date(entry).getTime()) / 1000);
@@ -33,18 +18,30 @@ export const MerchantLiveSessionsPage = () => {
     return `${m}m ${s}s`;
   };
 
-  const downloadCsv = () => {
-    const header = "Session ID,User ID,Venue ID,Status,Entry Time,INR Charged,Crypto Charged\n";
-    const rows = sessions.map((s) =>
-      [s.id, s.user_id, s.venue_id, s.status, s.entry_time, s.inr_equivalent, s.crypto_charged].join(",")
-    );
-    const blob = new Blob([header + rows.join("\n")], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `sessions-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+  const downloadCsv = async () => {
+    try {
+      const csv = await triggerExport().unwrap();
+      const blob = new Blob([csv], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `sessions-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      // fallback to local CSV
+      const header = "Session ID,User ID,Venue ID,Status,Entry Time,INR Charged,Crypto Charged\n";
+      const rows = sessions.map((s) =>
+        [s.id, s.user_id, s.venue_id, s.status, s.entry_time, s.inr_equivalent, s.crypto_charged].join(",")
+      );
+      const blob = new Blob([header + rows.join("\n")], { type: "text/csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `sessions-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
   };
 
   return (
@@ -73,7 +70,7 @@ export const MerchantLiveSessionsPage = () => {
             ↻ Refresh
           </button>
           <button
-            onClick={downloadCsv}
+            onClick={() => void downloadCsv()}
             className="rounded-full bg-blush px-4 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5"
           >
             ⬇ Export CSV
@@ -82,7 +79,16 @@ export const MerchantLiveSessionsPage = () => {
       </div>
 
       {isLoading ? (
-        <p className="text-ink/55">Loading sessions…</p>
+        <div className="flex items-center justify-center py-12">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-violet border-t-transparent" />
+        </div>
+      ) : isError ? (
+        <div className="glass-panel rounded-[32px] p-6">
+          <p className="text-sm text-rose-600">Failed to load sessions.</p>
+          <button onClick={() => void refetch()} className="mt-2 rounded-full bg-rose-100 px-4 py-2 text-xs font-semibold text-rose-700">
+            Retry
+          </button>
+        </div>
       ) : filtered.length === 0 ? (
         <div className="glass-panel rounded-[32px] p-12 text-center text-ink/55">
           No {filter !== "all" ? filter : ""} sessions found.
@@ -97,6 +103,7 @@ export const MerchantLiveSessionsPage = () => {
                 <th className="px-5 py-4">Duration</th>
                 <th className="px-5 py-4">INR Charged</th>
                 <th className="px-5 py-4">Crypto</th>
+                <th className="px-5 py-4">Trigger</th>
               </tr>
             </thead>
             <tbody>
@@ -123,6 +130,7 @@ export const MerchantLiveSessionsPage = () => {
                   <td className="px-5 py-3 font-mono text-xs text-ink/60">
                     {Number(s.crypto_charged).toFixed(6)}
                   </td>
+                  <td className="px-5 py-3 text-ink/65">{s.trigger_mode}</td>
                 </tr>
               ))}
             </tbody>

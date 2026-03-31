@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useGetOperatorAnalyticsQuery } from "../store/api";
 import {
   Bar,
   BarChart,
@@ -14,14 +14,7 @@ import {
   XAxis,
   YAxis
 } from "recharts";
-import { apiFetch } from "../lib/api";
-
-type AnalyticsData = {
-  daily: Array<{ date: string; revenue: number; sessions: number; fees: number }>;
-  byCategory: Array<{ category: string; value: number }>;
-  topMerchants: Array<{ name: string; revenue: number }>;
-  summary: { totalRevenue: number; totalSessions: number; totalFees: number; activeMerchants: number };
-};
+// ...
 
 const COLORS = ["#7c3aed", "#ff5ea8", "#22c55e", "#f59e0b", "#06b6d4", "#e11d48"];
 const formatInr = (value: number) => `INR ${value.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -30,11 +23,7 @@ const renderCategoryLabel = ({ name, percent }: { name?: string | number; percen
   `${String(name ?? "other")} ${Math.round((percent ?? 0) * 100)}%`;
 
 export const OperatorAnalyticsPage = () => {
-  const { data, isLoading } = useQuery({
-    queryKey: ["operator-analytics"],
-    queryFn: () => apiFetch<AnalyticsData>("/analytics/operator"),
-    refetchInterval: 30_000
-  });
+  const { data, isLoading } = useGetOperatorAnalyticsQuery(undefined, { pollingInterval: 30000 });
 
   if (isLoading) {
     return (
@@ -101,7 +90,7 @@ export const OperatorAnalyticsPage = () => {
                 label={renderCategoryLabel}
                 labelLine
               >
-                {(data?.byCategory ?? []).map((_, index) => (
+                {(data?.byCategory ?? []).map((_: any, index: any) => (
                   <Cell key={index} fill={COLORS[index % COLORS.length]} />
                 ))}
               </Pie>

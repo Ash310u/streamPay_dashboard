@@ -1,8 +1,11 @@
 import { ArrowRight, ShieldCheck, Wallet, Waves } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useAppSelector } from "../store";
+import { getAppPathForRole, selectAuthRole } from "../store/authSlice";
 
-export const LandingPage = ({ role }: { role: "user" | "merchant" | "admin" | null }) => {
-  const appHref = role === "merchant" ? "/app/merchant" : role === "admin" ? "/app/operator" : "/app/customer";
+export const LandingPage = () => {
+  const role = useAppSelector(selectAuthRole);
+  const appHref = getAppPathForRole(role);
 
   return (
     <div className="min-h-screen bg-aurora px-4 py-6 sm:px-6">

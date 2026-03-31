@@ -13,8 +13,8 @@ export const registerAuthRoutes = async (app: FastifyInstance) => {
       password: payload.password,
       email_confirm: true,
       user_metadata: {
-        full_name: payload.fullName
-      }
+        full_name: payload.fullName,
+      },
     });
 
     if (error) {
@@ -23,7 +23,7 @@ export const registerAuthRoutes = async (app: FastifyInstance) => {
 
     return reply.status(201).send({
       userId: data.user.id,
-      role: "user"
+      role: "user",
     });
   });
 
@@ -31,7 +31,7 @@ export const registerAuthRoutes = async (app: FastifyInstance) => {
     const payload = authLoginSchema.parse(request.body);
     const result = await authClient.auth.signInWithPassword({
       email: payload.email,
-      password: payload.password
+      password: payload.password,
     });
 
     if (result.error) {
@@ -40,7 +40,7 @@ export const registerAuthRoutes = async (app: FastifyInstance) => {
 
     return reply.send({
       session: result.data.session,
-      user: result.data.user
+      user: result.data.user,
     });
   });
 
@@ -54,7 +54,7 @@ export const registerAuthRoutes = async (app: FastifyInstance) => {
     }
 
     const result = await authClient.auth.refreshSession({
-      refresh_token: payload.refreshToken
+      refresh_token: payload.refreshToken,
     });
 
     if (result.error) {
@@ -70,11 +70,13 @@ export const registerAuthRoutes = async (app: FastifyInstance) => {
     const redirectTo = `${process.env.API_BASE_URL ?? "http://localhost:4000"}/auth/google/callback`;
     const { data, error } = await authClient.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo }
+      options: { redirectTo },
     });
 
     if (error || !data.url) {
-      return reply.status(500).send({ error: error?.message ?? "OAuth initiation failed" });
+      return reply
+        .status(500)
+        .send({ error: error?.message ?? "OAuth initiation failed" });
     }
 
     return reply.redirect(data.url);
@@ -90,7 +92,9 @@ export const registerAuthRoutes = async (app: FastifyInstance) => {
     const { data, error } = await authClient.auth.exchangeCodeForSession(code);
 
     if (error || !data.session) {
-      return reply.status(401).send({ error: error?.message ?? "Code exchange failed" });
+      return reply
+        .status(401)
+        .send({ error: error?.message ?? "Code exchange failed" });
     }
 
     // Ensure profile exists
@@ -104,9 +108,11 @@ export const registerAuthRoutes = async (app: FastifyInstance) => {
     if (!profile) {
       await app.supabase.from("profiles").insert({
         id: userId,
-        full_name: data.session.user.user_metadata?.full_name ?? data.session.user.email?.split("@")[0],
+        full_name:
+          data.session.user.user_metadata?.full_name ??
+          data.session.user.email?.split("@")[0],
         role: "user",
-        kyc_status: "pending"
+        kyc_status: "pending",
       });
     }
 
@@ -115,7 +121,7 @@ export const registerAuthRoutes = async (app: FastifyInstance) => {
     const params = new URLSearchParams({
       access_token: data.session.access_token,
       refresh_token: data.session.refresh_token,
-      provider: "google"
+      provider: "google",
     });
     return reply.redirect(`${clientUrl}/auth/callback?${params.toString()}`);
   });
@@ -126,11 +132,13 @@ export const registerAuthRoutes = async (app: FastifyInstance) => {
     const redirectTo = `${process.env.API_BASE_URL ?? "http://localhost:4000"}/auth/github/callback`;
     const { data, error } = await authClient.auth.signInWithOAuth({
       provider: "github",
-      options: { redirectTo }
+      options: { redirectTo },
     });
 
     if (error || !data.url) {
-      return reply.status(500).send({ error: error?.message ?? "OAuth initiation failed" });
+      return reply
+        .status(500)
+        .send({ error: error?.message ?? "OAuth initiation failed" });
     }
 
     return reply.redirect(data.url);
@@ -146,7 +154,9 @@ export const registerAuthRoutes = async (app: FastifyInstance) => {
     const { data, error } = await authClient.auth.exchangeCodeForSession(code);
 
     if (error || !data.session) {
-      return reply.status(401).send({ error: error?.message ?? "Code exchange failed" });
+      return reply
+        .status(401)
+        .send({ error: error?.message ?? "Code exchange failed" });
     }
 
     const userId = data.session.user.id;
@@ -159,9 +169,12 @@ export const registerAuthRoutes = async (app: FastifyInstance) => {
     if (!profile) {
       await app.supabase.from("profiles").insert({
         id: userId,
-        full_name: data.session.user.user_metadata?.full_name ?? data.session.user.user_metadata?.user_name ?? "User",
+        full_name:
+          data.session.user.user_metadata?.full_name ??
+          data.session.user.user_metadata?.user_name ??
+          "User",
         role: "user",
-        kyc_status: "pending"
+        kyc_status: "pending",
       });
     }
 
@@ -169,7 +182,7 @@ export const registerAuthRoutes = async (app: FastifyInstance) => {
     const params = new URLSearchParams({
       access_token: data.session.access_token,
       refresh_token: data.session.refresh_token,
-      provider: "github"
+      provider: "github",
     });
     return reply.redirect(`${clientUrl}/auth/callback?${params.toString()}`);
   });
@@ -185,7 +198,9 @@ export const registerAuthRoutes = async (app: FastifyInstance) => {
     };
 
     if (!payload.email) {
-      return reply.status(400).send({ error: "email is required for Web3Auth bridge login" });
+      return reply
+        .status(400)
+        .send({ error: "email is required for Web3Auth bridge login" });
     }
 
     // Verify Web3Auth JWT if verifier is configured
@@ -198,22 +213,26 @@ export const registerAuthRoutes = async (app: FastifyInstance) => {
           body: JSON.stringify({
             idToken: payload.idToken,
             appPublicKey: payload.appPublicKey,
-            network: process.env.WEB3AUTH_NETWORK ?? "sapphire_mainnet"
-          })
+            network: process.env.WEB3AUTH_NETWORK ?? "sapphire_mainnet",
+          }),
         });
 
         if (!verifyResponse.ok) {
-          return reply.status(401).send({ error: "Web3Auth token verification failed" });
+          return reply
+            .status(401)
+            .send({ error: "Web3Auth token verification failed" });
         }
       } catch {
-        return reply.status(502).send({ error: "Web3Auth verification service unavailable" });
+        return reply
+          .status(502)
+          .send({ error: "Web3Auth verification service unavailable" });
       }
     }
 
     const password = `web3_${payload.walletAddress ?? "wallet"}_Detrix!2026`;
     const existing = await authClient.auth.signInWithPassword({
       email: payload.email,
-      password
+      password,
     });
 
     if (!existing.error) {
@@ -232,8 +251,8 @@ export const registerAuthRoutes = async (app: FastifyInstance) => {
       password,
       email_confirm: true,
       user_metadata: {
-        wallet_address: payload.walletAddress
-      }
+        wallet_address: payload.walletAddress,
+      },
     });
 
     if (created.error) {
@@ -242,7 +261,7 @@ export const registerAuthRoutes = async (app: FastifyInstance) => {
 
     const login = await authClient.auth.signInWithPassword({
       email: payload.email,
-      password
+      password,
     });
 
     if (login.error) {
@@ -255,7 +274,8 @@ export const registerAuthRoutes = async (app: FastifyInstance) => {
   // ── Merchant KYC upload ──────────────────────────────────────────
 
   app.post("/auth/kyc/upload", async (request, reply) => {
-    const user = (request as unknown as { user?: { id: string; role: string } }).user;
+    const user = (request as unknown as { user?: { id: string; role: string } })
+      .user;
     if (!user) return reply.status(401).send({ error: "Unauthorized" });
 
     const payload = request.body as {
@@ -269,18 +289,16 @@ export const registerAuthRoutes = async (app: FastifyInstance) => {
     };
 
     // Update merchant record
-    await app.supabase
-      .from("merchants")
-      .upsert({
-        id: user.id,
-        business_name: payload.businessName,
-        gstin: payload.gstNumber,
-        pan_number: payload.panNumber,
-        bank_account_number: payload.bankAccountNumber,
-        bank_ifsc: payload.bankIfsc,
-        bank_account_name: payload.bankAccountName,
-        onboarded_at: new Date().toISOString()
-      });
+    await app.supabase.from("merchants").upsert({
+      id: user.id,
+      business_name: payload.businessName,
+      gstin: payload.gstNumber,
+      pan_number: payload.panNumber,
+      bank_account_number: payload.bankAccountNumber,
+      bank_ifsc: payload.bankIfsc,
+      bank_account_name: payload.bankAccountName,
+      onboarded_at: new Date().toISOString(),
+    });
 
     // Update profile KYC status
     await app.supabase
@@ -290,7 +308,7 @@ export const registerAuthRoutes = async (app: FastifyInstance) => {
 
     return reply.status(200).send({
       kycStatus: "pending",
-      message: "KYC documents submitted successfully. Review in progress."
+      message: "KYC documents submitted successfully. Review in progress.",
     });
   });
 

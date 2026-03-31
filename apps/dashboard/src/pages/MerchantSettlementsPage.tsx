@@ -1,5 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
-import { apiFetch } from "../lib/api";
+import { useGetMerchantSettlementsQuery } from "../store/api";
 
 type Settlement = {
   id: string;
@@ -12,10 +11,7 @@ type Settlement = {
 };
 
 export const MerchantSettlementsPage = () => {
-  const settlementsQuery = useQuery({
-    queryKey: ["merchant-settlements"],
-    queryFn: () => apiFetch<Settlement[]>("/merchants/me/settlements")
-  });
+  const { data: settlements = [] } = useGetMerchantSettlementsQuery();
 
   return (
     <section className="glass-panel rounded-[32px] p-6">
@@ -34,7 +30,7 @@ export const MerchantSettlementsPage = () => {
             </tr>
           </thead>
           <tbody>
-            {(settlementsQuery.data ?? []).map((item) => (
+            {settlements.map((item) => (
               <tr key={item.id} className="border-t border-white/40">
                 <td className="px-4 py-3">{item.batch_date}</td>
                 <td className="px-4 py-3">{item.total_sessions}</td>
