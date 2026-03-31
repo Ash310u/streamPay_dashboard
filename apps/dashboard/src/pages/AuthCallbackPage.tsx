@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { useAppDispatch } from "../store";
-import { getAppPathForRole, syncAuthSession } from "../store/authSlice";
+import { getAppPathForRole, syncAuthSession } from "../store/slices/authSlice";
 
 export const AuthCallbackPage = () => {
   const dispatch = useAppDispatch();

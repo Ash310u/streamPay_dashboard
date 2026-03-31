@@ -1,7 +1,7 @@
 import { ArrowRight, ShieldCheck, Wallet, Waves } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAppSelector } from "../store";
-import { getAppPathForRole, selectAuthRole } from "../store/authSlice";
+import { getAppPathForRole, selectAuthRole } from "../store/slices/authSlice";
 
 export const LandingPage = () => {
   const role = useAppSelector(selectAuthRole);

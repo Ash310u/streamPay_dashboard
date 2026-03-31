@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createRealtimeClient } from "../lib/realtime";
 import { motion, AnimatePresence, Variants } from "framer-motion";
+import { useAppDispatch, useAppSelector } from "../store";
 import {
   Profile,
   WalletTransaction,
@@ -23,6 +24,14 @@ import {
   useMarkNotificationReadMutation,
   useReconcileSessionQuery
 } from "../store/api";
+import {
+  closeCustomerDispute,
+  openCustomerDispute,
+  selectCustomerDashboard,
+  setCustomerDashboardTab,
+  setCustomerDisputeReason,
+  setCustomerTopUpLoading
+} from "../store/slices/customerDashboardSlice";
 
 type Wallet = {
   balance_crypto: number;
@@ -107,9 +116,8 @@ const itemVariants: Variants = {
 };
 
 export const CustomerDashboardPage = () => {
-  const [tab, setTab] = useState<"sessions" | "transactions" | "overview">("sessions");
-  const [disputeSessionId, setDisputeSessionId] = useState<string | null>(null);
-  const [disputeReason, setDisputeReason] = useState("");
+  const dispatch = useAppDispatch();
+  const { tab, disputeSessionId, disputeReason, isTopUpLoading } = useAppSelector(selectCustomerDashboard);
 
   const { data: profileData } = useGetProfileQuery();
   const { data: walletData, isLoading: walletLoading, isError: walletError, refetch: walletRefetch } = useGetWalletBalanceQuery();
@@ -126,7 +134,6 @@ export const CustomerDashboardPage = () => {
 
   const [topupOrder] = useTopupOrderMutation();
   const [topupVerify] = useTopupVerifyMutation();
-  const [isTopUpLoading, setIsTopUpLoading] = useState(false);
 
   const [checkoutSession, { isLoading: isCheckoutLoading }] = useCheckoutSessionMutation();
   const [closeSession, { isLoading: isCloseLoading }] = useCloseSessionMutation();
@@ -135,7 +142,7 @@ export const CustomerDashboardPage = () => {
   const [markRead] = useMarkNotificationReadMutation();
 
   const handleTopUp = async (amountInr: number) => {
-    setIsTopUpLoading(true);
+    dispatch(setCustomerTopUpLoading(true));
     try {
       const order = await topupOrder({ amountInr }).unwrap();
       if (order.mode === "live") {
@@ -145,7 +152,7 @@ export const CustomerDashboardPage = () => {
     } catch (err) {
       console.error("Topup failed", err);
     } finally {
-      setIsTopUpLoading(false);
+      dispatch(setCustomerTopUpLoading(false));
     }
   };
 
@@ -271,7 +278,7 @@ export const CustomerDashboardPage = () => {
               {(["sessions", "transactions", "overview"] as const).map((t) => (
                 <button
                   key={t}
-                  onClick={() => setTab(t)}
+                  onClick={() => dispatch(setCustomerDashboardTab(t))}
                   className={`rounded-full px-4 py-2 text-sm font-semibold transition duration-300 ${tab === t ? "bg-white/10 text-ivory shadow-sm" : "bg-transparent text-slate-400 hover:text-ivory"
                     }`}
                 >
@@ -341,7 +348,7 @@ export const CustomerDashboardPage = () => {
                                     </button>
                                     {session.status === "closed" && (
                                       <button
-                                        onClick={() => { setDisputeSessionId(session.id); setDisputeReason(""); }}
+                                        onClick={() => dispatch(openCustomerDispute(session.id))}
                                         className="rounded-full bg-amber-500/10 px-2 py-1 text-xs font-semibold text-amber-400 transition hover:bg-amber-500/20"
                                       >
                                         Dispute
@@ -448,7 +455,7 @@ export const CustomerDashboardPage = () => {
                 <h4 className="text-sm font-semibold uppercase tracking-[0.25em] text-amber-500">Dispute session</h4>
                 <textarea
                   value={disputeReason}
-                  onChange={(e) => setDisputeReason(e.target.value)}
+                  onChange={(e) => dispatch(setCustomerDisputeReason(e.target.value))}
                   placeholder="Describe your concern…"
                   className="mt-3 w-full rounded-2xl border border-white/10 bg-black/40 focus:bg-black/60 p-3 text-sm outline-none text-ivory placeholder-slate-500 focus:border-amber-500/50 transition-colors"
                   rows={3}
@@ -462,7 +469,7 @@ export const CustomerDashboardPage = () => {
                     {isDisputeLoading ? "Submitting…" : "Submit dispute"}
                   </button>
                   <button
-                    onClick={() => setDisputeSessionId(null)}
+                    onClick={() => dispatch(closeCustomerDispute())}
                     className="rounded-full bg-white/10 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-white/20 hover:text-white transition-colors"
                   >
                     Cancel

@@ -19,7 +19,7 @@ import { OperatorDashboardPage } from "./pages/OperatorDashboardPage";
 import { OperatorMerchantsPage } from "./pages/OperatorMerchantsPage";
 import { OperatorSettlementsPage } from "./pages/OperatorSettlementsPage";
 import { AnimatePresence } from "framer-motion";
-import { clearAuth, getAppPathForRole, selectAuth, syncAuthSession, type UserRole } from "./store/authSlice";
+import { clearAuth, getAppPathForRole, selectAuth, syncAuthSession, type UserRole } from "./store/slices/authSlice";
 import { useAppDispatch, useAppSelector } from "./store";
 
 const RoleGate = ({ allowed, children }: {

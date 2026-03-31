@@ -1,43 +1,24 @@
-import { useState } from "react";
+import { useAppDispatch, useAppSelector } from "../store";
 import {
   useGetMerchantVenuesQuery,
   useCreateVenueMutation,
   useUpdateVenueMutation,
   useDeleteVenueMutation
 } from "../store/api";
-
-type Venue = {
-  id: string;
-  name: string;
-  city: string;
-  address: string;
-  category: string;
-  description?: string;
-  lat?: number;
-  lng?: number;
-};
+import {
+  resetMerchantVenueForm,
+  selectMerchantVenues,
+  setMerchantVenueDeleteConfirmId,
+  setMerchantVenueEditField,
+  setMerchantVenueFormField,
+  startEditingMerchantVenue,
+  stopEditingMerchantVenue,
+  type MerchantVenue
+} from "../store/slices/merchantVenuesSlice";
 
 export const MerchantVenuesPage = () => {
-  const [form, setForm] = useState({
-    name: "",
-    description: "",
-    category: "coworking",
-    address: "",
-    city: "",
-    lat: 12.9716,
-    lng: 77.5946
-  });
-  const [editingVenue, setEditingVenue] = useState<Venue | null>(null);
-  const [editForm, setEditForm] = useState({
-    name: "",
-    description: "",
-    category: "",
-    address: "",
-    city: "",
-    lat: 0,
-    lng: 0
-  });
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const dispatch = useAppDispatch();
+  const { form, editingVenue, editForm, deleteConfirmId } = useAppSelector(selectMerchantVenues);
 
   const { data: venuesData = [], isLoading: venuesLoading, isError: venuesError, refetch: venuesRefetch } = useGetMerchantVenuesQuery();
 
@@ -48,15 +29,7 @@ export const MerchantVenuesPage = () => {
   const handleCreateVenue = async () => {
     try {
       await createVenueMutation(form).unwrap();
-      setForm({
-        name: "",
-        description: "",
-        category: "coworking",
-        address: "",
-        city: "",
-        lat: 12.9716,
-        lng: 77.5946
-      });
+      dispatch(resetMerchantVenueForm());
     } catch {}
   };
 
@@ -64,28 +37,19 @@ export const MerchantVenuesPage = () => {
     if (!editingVenue) return;
     try {
       await updateVenueMutation({ id: editingVenue.id, body: editForm }).unwrap();
-      setEditingVenue(null);
+      dispatch(stopEditingMerchantVenue());
     } catch {}
   };
 
   const handleDeleteVenue = async (id: string) => {
     try {
       await deleteVenueMutation(id).unwrap();
-      setDeleteConfirmId(null);
+      dispatch(setMerchantVenueDeleteConfirmId(null));
     } catch {}
   };
 
-  const startEdit = (venue: Venue) => {
-    setEditingVenue(venue);
-    setEditForm({
-      name: venue.name,
-      description: venue.description ?? "",
-      category: venue.category,
-      address: venue.address,
-      city: venue.city,
-      lat: venue.lat ?? 12.9716,
-      lng: venue.lng ?? 77.5946
-    });
+  const startEdit = (venue: MerchantVenue) => {
+    dispatch(startEditingMerchantVenue(venue));
   };
 
   const inputClass = "w-full rounded-2xl border border-white/40 bg-white/55 px-4 py-3 outline-none";
@@ -103,14 +67,16 @@ export const MerchantVenuesPage = () => {
               <input
                 key={field}
                 value={editForm[field as keyof typeof editForm] as string}
-                onChange={(event) => setEditForm((current) => ({ ...current, [field]: event.target.value }))}
+                onChange={(event) =>
+                  dispatch(setMerchantVenueEditField({ field: field as keyof typeof editForm, value: event.target.value }))
+                }
                 placeholder={field}
                 className={inputClass}
               />
             ))}
             <select
               value={editForm.category}
-              onChange={(event) => setEditForm((current) => ({ ...current, category: event.target.value }))}
+              onChange={(event) => dispatch(setMerchantVenueEditField({ field: "category", value: event.target.value }))}
               className={inputClass}
             >
               {["gym", "ev_charger", "coworking", "parking", "lab", "other"].map((item) => (
@@ -128,7 +94,7 @@ export const MerchantVenuesPage = () => {
                 {isUpdatePending ? "Saving…" : "Save changes"}
               </button>
               <button
-                onClick={() => setEditingVenue(null)}
+                onClick={() => dispatch(stopEditingMerchantVenue())}
                 className="rounded-full bg-white/55 px-5 py-3 text-sm font-semibold text-ink"
               >
                 Cancel
@@ -144,14 +110,16 @@ export const MerchantVenuesPage = () => {
               <input
                 key={field}
                 value={form[field as keyof typeof form] as string}
-                onChange={(event) => setForm((current) => ({ ...current, [field]: event.target.value }))}
+                onChange={(event) =>
+                  dispatch(setMerchantVenueFormField({ field: field as keyof typeof form, value: event.target.value }))
+                }
                 placeholder={field}
                 className={inputClass}
               />
             ))}
             <select
               value={form.category}
-              onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))}
+              onChange={(event) => dispatch(setMerchantVenueFormField({ field: "category", value: event.target.value }))}
               className={inputClass}
             >
               {["gym", "ev_charger", "coworking", "parking", "lab", "other"].map((item) => (
@@ -214,7 +182,7 @@ export const MerchantVenuesPage = () => {
                           {isDeletePending ? "…" : "Confirm"}
                         </button>
                         <button
-                          onClick={() => setDeleteConfirmId(null)}
+                          onClick={() => dispatch(setMerchantVenueDeleteConfirmId(null))}
                           className="rounded-full bg-white px-3 py-2 text-xs font-semibold text-ink"
                         >
                           Cancel
@@ -222,7 +190,7 @@ export const MerchantVenuesPage = () => {
                       </div>
                     ) : (
                       <button
-                        onClick={() => setDeleteConfirmId(venue.id)}
+                        onClick={() => dispatch(setMerchantVenueDeleteConfirmId(venue.id))}
                         className="rounded-full bg-rose-100 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:-translate-y-0.5"
                       >
                         Delete

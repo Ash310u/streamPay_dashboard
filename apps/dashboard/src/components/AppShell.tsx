@@ -5,7 +5,7 @@ import { supabase } from "../lib/supabase";
 import { useLogoutMutation } from "../store/api";
 import { motion } from "framer-motion";
 import { useAppSelector } from "../store";
-import { selectAuthRole } from "../store/authSlice";
+import { selectAuthRole } from "../store/slices/authSlice";
 
 const navByRole = {
   user: [

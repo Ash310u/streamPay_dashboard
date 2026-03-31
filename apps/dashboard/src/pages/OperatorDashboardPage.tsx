@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { useAppDispatch } from "../store";
+import { useEffect, useMemo } from "react";
+import { useAppDispatch, useAppSelector } from "../store";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import {
   apiSlice,
@@ -11,6 +11,7 @@ import {
   useRefundSessionMutation,
   useLazyExportOperatorLedgerQuery
 } from "../store/api";
+import { selectOperatorDashboard, setOperatorDashboardExportStatus, setOperatorDashboardTab } from "../store/slices/operatorDashboardSlice";
 import {
   Area,
   AreaChart,
@@ -71,8 +72,7 @@ const itemVariants: Variants = {
 
 export const OperatorDashboardPage = () => {
   const dispatch = useAppDispatch();
-  const [tab, setTab] = useState<"overview" | "ledger" | "sessions">("overview");
-  const [exportStatus, setExportStatus] = useState<string | null>(null);
+  const { tab, exportStatus } = useAppSelector(selectOperatorDashboard);
 
   const [triggerExport] = useLazyExportOperatorLedgerQuery();
 
@@ -85,7 +85,7 @@ export const OperatorDashboardPage = () => {
   const [refundSession, { isLoading: isRefundPending }] = useRefundSessionMutation();
 
   const handleExportLedger = async () => {
-    setExportStatus("Exporting…");
+    dispatch(setOperatorDashboardExportStatus("Exporting…"));
     try {
       const csv = await triggerExport().unwrap();
       const blob = new Blob([csv], { type: "text/csv" });
@@ -95,10 +95,10 @@ export const OperatorDashboardPage = () => {
       a.download = `ledger-export-${new Date().toISOString().slice(0, 10)}.csv`;
       a.click();
       URL.revokeObjectURL(url);
-      setExportStatus("✅ Exported!");
-      setTimeout(() => setExportStatus(null), 3000);
+      dispatch(setOperatorDashboardExportStatus("✅ Exported!"));
+      setTimeout(() => dispatch(setOperatorDashboardExportStatus(null)), 3000);
     } catch (err) {
-      setExportStatus(`❌ ${err instanceof Error ? err.message : "Export failed"}`);
+      dispatch(setOperatorDashboardExportStatus(`❌ ${err instanceof Error ? err.message : "Export failed"}`));
     }
   };
 
@@ -171,7 +171,7 @@ export const OperatorDashboardPage = () => {
           {(["overview", "ledger", "sessions"] as const).map((t) => (
             <button
               key={t}
-              onClick={() => setTab(t)}
+              onClick={() => dispatch(setOperatorDashboardTab(t))}
               className={`rounded-full px-5 py-2.5 text-sm font-semibold transition duration-300 ${tab === t ? "bg-white/10 text-ivory shadow-sm" : "bg-transparent text-slate-400 hover:text-ivory"
                 }`}
             >

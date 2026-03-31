@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useAppDispatch, useAppSelector } from "../store";
 import {
   useGetMerchantVenuesQuery,
   useGetVenuePricingQuery,
@@ -7,43 +7,29 @@ import {
   useLazyGetBillingPreviewQuery,
   type BillingPreview
 } from "../store/api";
-
-type PricingPlan = {
-  id: string;
-  name: string;
-  billing_unit: "per_second" | "per_minute" | "per_hour";
-  rate_crypto: string;
-  rate_inr_equivalent: string;
-  base_fee_inr: string;
-  minimum_charge_inr: string;
-  maximum_cap_inr: string | null;
-  grace_period_seconds: number;
-  is_active: boolean;
-};
+import {
+  resetMerchantPricingForm,
+  selectMerchantPricing,
+  setMerchantPricingEditFormField,
+  setMerchantPricingFormField,
+  setMerchantPricingPreviewPlanId,
+  setMerchantPricingPreviewSeconds,
+  setMerchantPricingStatus,
+  setMerchantPricingVenueId,
+  startEditingMerchantPricingPlan,
+  stopEditingMerchantPricingPlan,
+  type MerchantPricingForm,
+  type MerchantPricingPlan
+} from "../store/slices/merchantPricingSlice";
 
 type Venue = { id: string; name: string };
 
 const BILLING_UNITS = ["per_second", "per_minute", "per_hour"] as const;
 
-const defaultForm = {
-  name: "",
-  billingUnit: "per_minute" as const,
-  rateCrypto: "0.000001",
-  rateInrEquivalent: "2.00",
-  baseFeeInr: "0",
-  minimumChargeInr: "5",
-  maximumCapInr: "",
-  gracePeriodSeconds: 60
-};
-
 export const MerchantPricingPage = () => {
-  const [selectedVenueId, setSelectedVenueId] = useState<string | null>(null);
-  const [form, setForm] = useState(defaultForm);
-  const [status, setStatus] = useState<string | null>(null);
-  const [editingPlan, setEditingPlan] = useState<PricingPlan | null>(null);
-  const [editForm, setEditForm] = useState(defaultForm);
-  const [previewSeconds, setPreviewSeconds] = useState(600);
-  const [previewPlanId, setPreviewPlanId] = useState<string | null>(null);
+  const dispatch = useAppDispatch();
+  const { selectedVenueId, form, status, editingPlan, editForm, previewSeconds, previewPlanId } =
+    useAppSelector(selectMerchantPricing);
 
   const [triggerPreview, { data: previewResult, isFetching: isPreviewFetching }] = useLazyGetBillingPreviewQuery();
 
@@ -66,10 +52,10 @@ export const MerchantPricingPage = () => {
           maximumCapInr: form.maximumCapInr ? Number(form.maximumCapInr) : null
         }
       }).unwrap();
-      setStatus("✅ Pricing plan created!");
-      setForm(defaultForm);
+      dispatch(setMerchantPricingStatus("✅ Pricing plan created!"));
+      dispatch(resetMerchantPricingForm());
     } catch (e: any) {
-      setStatus(`❌ ${e?.data?.error || e?.message || "Failed"}`);
+      dispatch(setMerchantPricingStatus(`❌ ${e?.data?.error || e?.message || "Failed"}`));
     }
   };
 
@@ -99,16 +85,16 @@ export const MerchantPricingPage = () => {
           isActive: editingPlan.is_active
         }
       }).unwrap();
-      setEditingPlan(null);
-      setStatus("✅ Plan updated!");
+      dispatch(stopEditingMerchantPricingPlan());
+      dispatch(setMerchantPricingStatus("✅ Plan updated!"));
     } catch (e: any) {
-      setStatus(`❌ ${e?.data?.error || e?.message || "Failed"}`);
+      dispatch(setMerchantPricingStatus(`❌ ${e?.data?.error || e?.message || "Failed"}`));
     }
   };
 
-  const fetchPreview = async (plan: PricingPlan) => {
+  const fetchPreview = async (plan: MerchantPricingPlan) => {
     try {
-      setPreviewPlanId(plan.id);
+      dispatch(setMerchantPricingPreviewPlanId(plan.id));
       await triggerPreview({
         elapsedSeconds: previewSeconds,
         billingUnit: plan.billing_unit,
@@ -123,29 +109,33 @@ export const MerchantPricingPage = () => {
     }
   };
 
-  const startEditPlan = (plan: PricingPlan) => {
-    setEditingPlan(plan);
-    setEditForm({
-      name: plan.name,
-      billingUnit: plan.billing_unit as any,
-      rateCrypto: plan.rate_crypto,
-      rateInrEquivalent: plan.rate_inr_equivalent,
-      baseFeeInr: plan.base_fee_inr,
-      minimumChargeInr: plan.minimum_charge_inr,
-      maximumCapInr: plan.maximum_cap_inr ?? "",
-      gracePeriodSeconds: plan.grace_period_seconds
-    });
+  const startEditPlan = (plan: MerchantPricingPlan) => {
+    dispatch(startEditingMerchantPricingPlan(plan));
   };
 
   const inputClass = "w-full rounded-2xl border border-white/40 bg-white/55 px-4 py-3 text-sm outline-none focus:border-violet";
 
-  const field = (label: string, key: keyof typeof defaultForm, formObj: typeof defaultForm, setFormFn: React.Dispatch<React.SetStateAction<typeof defaultForm>>, type = "text") => (
+  const field = (
+    label: string,
+    key: keyof MerchantPricingForm,
+    formObj: MerchantPricingForm,
+    formType: "create" | "edit",
+    type = "text"
+  ) => (
     <div key={key}>
       <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.25em] text-ink/55">{label}</label>
       <input
         type={type}
         value={String(formObj[key])}
-        onChange={(e) => setFormFn((f) => ({ ...f, [key]: type === "number" ? Number(e.target.value) : e.target.value }))}
+        onChange={(e) => {
+          const value = type === "number" ? Number(e.target.value) : e.target.value;
+          if (formType === "create") {
+            dispatch(setMerchantPricingFormField({ field: key, value } as never));
+            return;
+          }
+
+          dispatch(setMerchantPricingEditFormField({ field: key, value } as never));
+        }}
         className={inputClass}
       />
     </div>
@@ -162,7 +152,7 @@ export const MerchantPricingPage = () => {
           <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.25em] text-ink/55">Venue</label>
           <select
             value={selectedVenueId ?? ""}
-            onChange={(e) => { setSelectedVenueId(e.target.value || null); setEditingPlan(null); }}
+            onChange={(e) => dispatch(setMerchantPricingVenueId(e.target.value || null))}
             className={inputClass}
           >
             <option value="">Select venue…</option>
@@ -172,25 +162,27 @@ export const MerchantPricingPage = () => {
 
         {selectedVenueId && !editingPlan && (
           <div className="mt-5 space-y-3">
-            {field("Plan name", "name", form, setForm)}
+            {field("Plan name", "name", form, "create")}
 
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.25em] text-ink/55">Billing unit</label>
               <select
                 value={form.billingUnit}
-                onChange={(e) => setForm((f) => ({ ...f, billingUnit: e.target.value as typeof f.billingUnit }))}
+                onChange={(e) =>
+                  dispatch(setMerchantPricingFormField({ field: "billingUnit", value: e.target.value as MerchantPricingForm["billingUnit"] }))
+                }
                 className={inputClass}
               >
                 {BILLING_UNITS.map((u) => <option key={u} value={u}>{u.replace("_", " ")}</option>)}
               </select>
             </div>
 
-            {field("Rate (crypto)", "rateCrypto", form, setForm)}
-            {field("Rate (INR equivalent)", "rateInrEquivalent", form, setForm)}
-            {field("Base fee (INR)", "baseFeeInr", form, setForm)}
-            {field("Minimum charge (INR)", "minimumChargeInr", form, setForm)}
-            {field("Maximum cap (INR, optional)", "maximumCapInr", form, setForm)}
-            {field("Grace period (seconds)", "gracePeriodSeconds", form, setForm, "number")}
+            {field("Rate (crypto)", "rateCrypto", form, "create")}
+            {field("Rate (INR equivalent)", "rateInrEquivalent", form, "create")}
+            {field("Base fee (INR)", "baseFeeInr", form, "create")}
+            {field("Minimum charge (INR)", "minimumChargeInr", form, "create")}
+            {field("Maximum cap (INR, optional)", "maximumCapInr", form, "create")}
+            {field("Grace period (seconds)", "gracePeriodSeconds", form, "create", "number")}
 
             <button
               onClick={() => void handleCreatePlan()}
@@ -209,23 +201,30 @@ export const MerchantPricingPage = () => {
         {editingPlan && (
           <div className="mt-5 space-y-3">
             <p className="text-sm font-semibold text-violet">Editing: {editingPlan.name}</p>
-            {field("Plan name", "name", editForm, setEditForm)}
+            {field("Plan name", "name", editForm, "edit")}
             <div>
               <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.25em] text-ink/55">Billing unit</label>
               <select
                 value={editForm.billingUnit}
-                onChange={(e) => setEditForm((f) => ({ ...f, billingUnit: e.target.value as typeof f.billingUnit }))}
+                onChange={(e) =>
+                  dispatch(
+                    setMerchantPricingEditFormField({
+                      field: "billingUnit",
+                      value: e.target.value as MerchantPricingForm["billingUnit"]
+                    })
+                  )
+                }
                 className={inputClass}
               >
                 {BILLING_UNITS.map((u) => <option key={u} value={u}>{u.replace("_", " ")}</option>)}
               </select>
             </div>
-            {field("Rate (crypto)", "rateCrypto", editForm, setEditForm)}
-            {field("Rate (INR equivalent)", "rateInrEquivalent", editForm, setEditForm)}
-            {field("Base fee (INR)", "baseFeeInr", editForm, setEditForm)}
-            {field("Minimum charge (INR)", "minimumChargeInr", editForm, setEditForm)}
-            {field("Maximum cap (INR, optional)", "maximumCapInr", editForm, setEditForm)}
-            {field("Grace period (seconds)", "gracePeriodSeconds", editForm, setEditForm, "number")}
+            {field("Rate (crypto)", "rateCrypto", editForm, "edit")}
+            {field("Rate (INR equivalent)", "rateInrEquivalent", editForm, "edit")}
+            {field("Base fee (INR)", "baseFeeInr", editForm, "edit")}
+            {field("Minimum charge (INR)", "minimumChargeInr", editForm, "edit")}
+            {field("Maximum cap (INR, optional)", "maximumCapInr", editForm, "edit")}
+            {field("Grace period (seconds)", "gracePeriodSeconds", editForm, "edit", "number")}
 
             <div className="flex gap-2">
               <button
@@ -236,7 +235,7 @@ export const MerchantPricingPage = () => {
                 {isUpdatePending ? "Saving…" : "Save changes"}
               </button>
               <button
-                onClick={() => setEditingPlan(null)}
+                onClick={() => dispatch(stopEditingMerchantPricingPlan())}
                 className="rounded-full bg-white/55 px-5 py-3 text-sm font-semibold text-ink"
               >
                 Cancel
@@ -298,7 +297,7 @@ export const MerchantPricingPage = () => {
                   <input
                     type="number"
                     value={previewSeconds}
-                    onChange={(e) => setPreviewSeconds(Number(e.target.value))}
+                    onChange={(e) => dispatch(setMerchantPricingPreviewSeconds(Number(e.target.value)))}
                     className="w-24 rounded-xl border border-white/40 bg-white/70 px-3 py-1.5 text-xs outline-none"
                     placeholder="Seconds"
                   />

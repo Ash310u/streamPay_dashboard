@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useAppDispatch, useAppSelector } from "../store";
 import { useGetVenuesQuery, useGetVenueQuery } from "../store/api";
+import { selectCustomerVenues, setCustomerVenueCityFilter, toggleCustomerVenueSelection } from "../store/slices/customerVenuesSlice";
 
 type Venue = {
   id: string;
@@ -14,8 +15,8 @@ type Venue = {
 };
 
 export const CustomerVenuesPage = () => {
-  const [selectedVenueId, setSelectedVenueId] = useState<string | null>(null);
-  const [cityFilter, setCityFilter] = useState<string | undefined>(undefined);
+  const dispatch = useAppDispatch();
+  const { selectedVenueId, cityFilter } = useAppSelector(selectCustomerVenues);
 
   const { data: venuesData, isLoading: venuesLoading, isError: venuesError, refetch: venuesRefetch } = useGetVenuesQuery(cityFilter || undefined);
   const { data: venueDetailData } = useGetVenueQuery(selectedVenueId ?? "", { skip: !selectedVenueId });
@@ -31,7 +32,7 @@ export const CustomerVenuesPage = () => {
         {cities.length > 0 && (
           <div className="mt-4 flex flex-wrap gap-2">
             <button
-              onClick={() => setCityFilter("")}
+              onClick={() => dispatch(setCustomerVenueCityFilter(""))}
               className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
                 !cityFilter ? "bg-violet text-white" : "bg-white/55 text-ink"
               }`}
@@ -41,7 +42,7 @@ export const CustomerVenuesPage = () => {
             {cities.map((city) => (
               <button
                 key={city}
-                onClick={() => setCityFilter(city)}
+                onClick={() => dispatch(setCustomerVenueCityFilter(city))}
                 className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
                   cityFilter === city ? "bg-violet text-white" : "bg-white/55 text-ink"
                 }`}
@@ -72,7 +73,7 @@ export const CustomerVenuesPage = () => {
             <article
               key={venue.id}
               className="glass-panel cursor-pointer rounded-[28px] p-6 transition hover:-translate-y-1"
-              onClick={() => setSelectedVenueId(venue.id === selectedVenueId ? null : venue.id)}
+              onClick={() => dispatch(toggleCustomerVenueSelection(venue.id))}
             >
               <p className="text-xs uppercase tracking-[0.25em] text-ink/50">{venue.category}</p>
               <h3 className="mt-2 text-2xl font-semibold">{venue.name}</h3>

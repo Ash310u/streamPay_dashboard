@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useAppDispatch, useAppSelector } from "../store";
 import {
   useGetMerchantTaxSummaryQuery,
   useAskTaxAssistantMutation,
   useGenerateTaxPdfMutation
 } from "../store/api";
+import { selectMerchantTaxAssistant, setMerchantTaxFinancialYear, setMerchantTaxQuestion } from "../store/slices/merchantTaxAssistantSlice";
 
 export const MerchantTaxAssistantPage = () => {
-  const [question, setQuestion] = useState("What is my GST liability this quarter?");
-  const [financialYear, setFinancialYear] = useState("2025-2026");
+  const dispatch = useAppDispatch();
+  const { question, financialYear } = useAppSelector(selectMerchantTaxAssistant);
 
   const { data: summaryData, isLoading: summaryLoading, isError: summaryError, refetch: summaryRefetch } = useGetMerchantTaxSummaryQuery(financialYear);
   const [askChat, { isLoading: isChatPending, data: chatData, isError: isChatError, error: chatError }] = useAskTaxAssistantMutation();
@@ -23,7 +24,7 @@ export const MerchantTaxAssistantPage = () => {
           <label className="mb-1 block text-xs font-semibold uppercase tracking-[0.25em] text-ink/55">Financial year</label>
           <select
             value={financialYear}
-            onChange={(e) => setFinancialYear(e.target.value)}
+            onChange={(e) => dispatch(setMerchantTaxFinancialYear(e.target.value))}
             className="w-full rounded-2xl border border-white/40 bg-white/55 px-4 py-3 text-sm outline-none"
           >
             {["2024-2025", "2025-2026", "2026-2027"].map((fy) => (
@@ -34,7 +35,7 @@ export const MerchantTaxAssistantPage = () => {
 
         <textarea
           value={question}
-          onChange={(event) => setQuestion(event.target.value)}
+          onChange={(event) => dispatch(setMerchantTaxQuestion(event.target.value))}
           className="mt-4 min-h-40 w-full rounded-[24px] border border-white/40 bg-white/55 p-4 outline-none"
         />
         <div className="mt-4 flex flex-wrap gap-3">

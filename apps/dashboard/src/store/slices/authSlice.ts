@@ -1,7 +1,7 @@
 import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import type { Session } from "@supabase/supabase-js";
-import { supabase } from "../lib/supabase";
-import type { RootState } from "./index";
+import { supabase } from "../../lib/supabase";
+import type { RootState } from "../index";
 
 export type UserRole = "user" | "merchant" | "admin";
 

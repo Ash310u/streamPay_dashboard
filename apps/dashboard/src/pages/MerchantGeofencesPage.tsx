@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useAppDispatch, useAppSelector } from "../store";
 import {
   useGetMerchantVenuesQuery,
   useGetVenueGeofencesQuery,
@@ -8,22 +9,25 @@ import {
   useUpdateGeofenceMutation,
   useGenerateVenueQrMutation
 } from "../store/api";
+import {
+  selectMerchantGeofences,
+  setMerchantGeofenceCircleField,
+  setMerchantGeofenceEditCircleField,
+  setMerchantGeofenceEditPolygonText,
+  setMerchantGeofenceFeedback,
+  setMerchantGeofenceMode,
+  setMerchantGeofencePolygonText,
+  setMerchantGeofenceVenueId,
+  startEditingMerchantGeofence,
+  stopEditingMerchantGeofence,
+  type MerchantGeofence
+} from "../store/slices/merchantGeofencesSlice";
 
 type Venue = {
   id: string;
   name: string;
   lat: number;
   lng: number;
-};
-
-type Geofence = {
-  id: string;
-  type: "circle" | "polygon";
-  center_lat: number | null;
-  center_lng: number | null;
-  radius_meters: number | null;
-  polygon_coordinates: Array<[number, number]> | null;
-  created_at: string;
 };
 
 type QrRecord = {
@@ -34,17 +38,10 @@ type QrRecord = {
   is_demo: boolean;
 };
 
-const defaultPolygon = "12.9716,77.5946\n12.9719,77.5956\n12.9709,77.5952";
-
 export const MerchantGeofencesPage = () => {
-  const [selectedVenueId, setSelectedVenueId] = useState<string | null>(null);
-  const [mode, setMode] = useState<"circle" | "polygon">("circle");
-  const [circle, setCircle] = useState({ centerLat: "12.9716", centerLng: "77.5946", radiusMeters: "120" });
-  const [polygonText, setPolygonText] = useState(defaultPolygon);
-  const [feedback, setFeedback] = useState<string | null>(null);
-  const [editingGeofence, setEditingGeofence] = useState<Geofence | null>(null);
-  const [editCircle, setEditCircle] = useState({ centerLat: "", centerLng: "", radiusMeters: "" });
-  const [editPolygonText, setEditPolygonText] = useState("");
+  const dispatch = useAppDispatch();
+  const { selectedVenueId, mode, circle, polygonText, feedback, editingGeofence, editCircle, editPolygonText } =
+    useAppSelector(selectMerchantGeofences);
 
   const { data: venues = [] } = useGetMerchantVenuesQuery();
 
@@ -95,18 +92,18 @@ export const MerchantGeofencesPage = () => {
           body: { type: "polygon", polygonCoordinates }
         }).unwrap();
       }
-      setFeedback("Geofence saved.");
+      dispatch(setMerchantGeofenceFeedback("Geofence saved."));
     } catch (e: any) {
-      setFeedback(e?.data?.error || e?.message || "Failed");
+      dispatch(setMerchantGeofenceFeedback(e?.data?.error || e?.message || "Failed"));
     }
   };
 
   const handleDeleteGeofence = async (id: string) => {
     try {
       await deleteGeofence(id).unwrap();
-      setFeedback("Geofence removed.");
+      dispatch(setMerchantGeofenceFeedback("Geofence removed."));
     } catch (e: any) {
-      setFeedback(e?.data?.error || e?.message || "Failed");
+      dispatch(setMerchantGeofenceFeedback(e?.data?.error || e?.message || "Failed"));
     }
   };
 
@@ -132,10 +129,10 @@ export const MerchantGeofencesPage = () => {
           body: { type: "polygon", polygonCoordinates }
         }).unwrap();
       }
-      setFeedback("Geofence updated.");
-      setEditingGeofence(null);
+      dispatch(setMerchantGeofenceFeedback("Geofence updated."));
+      dispatch(stopEditingMerchantGeofence());
     } catch (e: any) {
-      setFeedback(e?.data?.error || e?.message || "Failed");
+      dispatch(setMerchantGeofenceFeedback(e?.data?.error || e?.message || "Failed"));
     }
   };
 
@@ -143,25 +140,14 @@ export const MerchantGeofencesPage = () => {
     try {
       if (!selectedVenueId) throw new Error("Select a venue first");
       await generateQr({ venueId: selectedVenueId, type: type + (demo ? "&demo=true" : "") }).unwrap();
-      setFeedback("QR token generated.");
+      dispatch(setMerchantGeofenceFeedback("QR token generated."));
     } catch (e: any) {
-      setFeedback(e?.data?.error || e?.message || "Failed");
+      dispatch(setMerchantGeofenceFeedback(e?.data?.error || e?.message || "Failed"));
     }
   };
 
-  const startEditGeofence = (gf: Geofence) => {
-    setEditingGeofence(gf);
-    if (gf.type === "circle") {
-      setEditCircle({
-        centerLat: String(gf.center_lat ?? 0),
-        centerLng: String(gf.center_lng ?? 0),
-        radiusMeters: String(gf.radius_meters ?? 100)
-      });
-    } else {
-      setEditPolygonText(
-        (gf.polygon_coordinates ?? []).map(([lat, lng]) => `${lat},${lng}`).join("\\n")
-      );
-    }
+  const startEditGeofence = (gf: MerchantGeofence) => {
+    dispatch(startEditingMerchantGeofence(gf));
   };
 
   const inputClass = "rounded-2xl border border-white/40 bg-white/55 px-4 py-3 text-sm outline-none";
@@ -177,9 +163,7 @@ export const MerchantGeofencesPage = () => {
           <select
             value={selectedVenueId ?? ""}
             onChange={(event) => {
-              setSelectedVenueId(event.target.value || null);
-              setFeedback(null);
-              setEditingGeofence(null);
+              dispatch(setMerchantGeofenceVenueId(event.target.value || null));
             }}
             className={`w-full ${inputClass}`}
           >
@@ -205,7 +189,7 @@ export const MerchantGeofencesPage = () => {
               {(["circle", "polygon"] as const).map((value) => (
                 <button
                   key={value}
-                  onClick={() => setMode(value)}
+                  onClick={() => dispatch(setMerchantGeofenceMode(value))}
                   className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
                     mode === value ? "bg-violet text-white" : "bg-white/55 text-ink"
                   }`}
@@ -219,19 +203,19 @@ export const MerchantGeofencesPage = () => {
               <div className="grid gap-3 sm:grid-cols-3">
                 <input
                   value={circle.centerLat}
-                  onChange={(event) => setCircle((current) => ({ ...current, centerLat: event.target.value }))}
+                  onChange={(event) => dispatch(setMerchantGeofenceCircleField({ field: "centerLat", value: event.target.value }))}
                   placeholder="Center latitude"
                   className={inputClass}
                 />
                 <input
                   value={circle.centerLng}
-                  onChange={(event) => setCircle((current) => ({ ...current, centerLng: event.target.value }))}
+                  onChange={(event) => dispatch(setMerchantGeofenceCircleField({ field: "centerLng", value: event.target.value }))}
                   placeholder="Center longitude"
                   className={inputClass}
                 />
                 <input
                   value={circle.radiusMeters}
-                  onChange={(event) => setCircle((current) => ({ ...current, radiusMeters: event.target.value }))}
+                  onChange={(event) => dispatch(setMerchantGeofenceCircleField({ field: "radiusMeters", value: event.target.value }))}
                   placeholder="Radius meters"
                   className={inputClass}
                 />
@@ -239,7 +223,7 @@ export const MerchantGeofencesPage = () => {
             ) : (
               <textarea
                 value={polygonText}
-                onChange={(event) => setPolygonText(event.target.value)}
+                onChange={(event) => dispatch(setMerchantGeofencePolygonText(event.target.value))}
                 rows={6}
                 className={`w-full ${inputClass}`}
                 placeholder="One lat,lng pair per line"
@@ -307,18 +291,18 @@ export const MerchantGeofencesPage = () => {
                       <p className="text-sm font-semibold text-violet">Editing {geofence.type} geofence</p>
                       {geofence.type === "circle" ? (
                         <div className="grid gap-2 sm:grid-cols-3">
-                          <input value={editCircle.centerLat} onChange={(e) => setEditCircle((c) => ({ ...c, centerLat: e.target.value }))} placeholder="Lat" className={inputClass} />
-                          <input value={editCircle.centerLng} onChange={(e) => setEditCircle((c) => ({ ...c, centerLng: e.target.value }))} placeholder="Lng" className={inputClass} />
-                          <input value={editCircle.radiusMeters} onChange={(e) => setEditCircle((c) => ({ ...c, radiusMeters: e.target.value }))} placeholder="Radius" className={inputClass} />
+                          <input value={editCircle.centerLat} onChange={(e) => dispatch(setMerchantGeofenceEditCircleField({ field: "centerLat", value: e.target.value }))} placeholder="Lat" className={inputClass} />
+                          <input value={editCircle.centerLng} onChange={(e) => dispatch(setMerchantGeofenceEditCircleField({ field: "centerLng", value: e.target.value }))} placeholder="Lng" className={inputClass} />
+                          <input value={editCircle.radiusMeters} onChange={(e) => dispatch(setMerchantGeofenceEditCircleField({ field: "radiusMeters", value: e.target.value }))} placeholder="Radius" className={inputClass} />
                         </div>
                       ) : (
-                        <textarea value={editPolygonText} onChange={(e) => setEditPolygonText(e.target.value)} rows={4} className={`w-full ${inputClass}`} />
+                        <textarea value={editPolygonText} onChange={(e) => dispatch(setMerchantGeofenceEditPolygonText(e.target.value))} rows={4} className={`w-full ${inputClass}`} />
                       )}
                       <div className="flex gap-2">
                         <button onClick={() => void handleUpdateGeofence()} disabled={isUpdatePending} className="rounded-full bg-violet px-4 py-2 text-xs font-semibold text-white disabled:opacity-60">
                           {isUpdatePending ? "Saving…" : "Update"}
                         </button>
-                        <button onClick={() => setEditingGeofence(null)} className="rounded-full bg-white px-3 py-2 text-xs font-semibold text-ink">Cancel</button>
+                        <button onClick={() => dispatch(stopEditingMerchantGeofence())} className="rounded-full bg-white px-3 py-2 text-xs font-semibold text-ink">Cancel</button>
                       </div>
                     </div>
                   ) : (

@@ -1,8 +1,11 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useAppDispatch, useAppSelector } from "../store";
 import { useGetMerchantSessionsQuery, useLazyExportMerchantRevenueQuery } from "../store/api";
+import { selectMerchantLiveSessions, setMerchantLiveSessionsFilter } from "../store/slices/merchantLiveSessionsSlice";
 
 export const MerchantLiveSessionsPage = () => {
-  const [filter, setFilter] = useState<"all" | "active" | "closed">("active");
+  const dispatch = useAppDispatch();
+  const { filter } = useAppSelector(selectMerchantLiveSessions);
   const [triggerExport] = useLazyExportMerchantRevenueQuery();
 
   const { data: sessions = [], isLoading, isError, refetch } = useGetMerchantSessionsQuery(filter === "all" ? undefined : filter, {
@@ -55,7 +58,7 @@ export const MerchantLiveSessionsPage = () => {
           {(["all", "active", "closed"] as const).map((f) => (
             <button
               key={f}
-              onClick={() => setFilter(f)}
+              onClick={() => dispatch(setMerchantLiveSessionsFilter(f))}
               className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
                 filter === f ? "bg-violet text-white" : "bg-white/55 text-ink"
               }`}

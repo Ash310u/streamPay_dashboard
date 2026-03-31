@@ -10,7 +10,7 @@ import {
   useKycUploadMutation
 } from "../store/api";
 import { useAppDispatch } from "../store";
-import { getAppPathForRole, syncAuthSession } from "../store/authSlice";
+import { getAppPathForRole, syncAuthSession } from "../store/slices/authSlice";
 
 const API_URL = import.meta.env.VITE_API_URL;
 

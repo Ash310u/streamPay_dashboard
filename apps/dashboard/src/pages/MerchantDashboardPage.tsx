@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { useAppDispatch } from "../store";
+import { useEffect, useMemo } from "react";
+import { useAppDispatch, useAppSelector } from "../store";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import {
   apiSlice,
@@ -17,6 +17,7 @@ import {
   type Profile,
   type Merchant
 } from "../store/api";
+import { selectMerchantDashboard, setMerchantDashboardExportStatus, setMerchantDashboardQrMessage } from "../store/slices/merchantDashboardSlice";
 import {
   Area,
   AreaChart,
@@ -98,8 +99,7 @@ const itemVariants: Variants = {
 
 export const MerchantDashboardPage = () => {
   const dispatch = useAppDispatch();
-  const [qrMessage, setQrMessage] = useState<string | null>(null);
-  const [exportStatus, setExportStatus] = useState<string | null>(null);
+  const { qrMessage, exportStatus } = useAppSelector(selectMerchantDashboard);
 
   const { data: profile } = useGetProfileQuery();
   const [triggerExport] = useLazyExportMerchantRevenueQuery();
@@ -115,7 +115,7 @@ export const MerchantDashboardPage = () => {
   const [generateQr, { isLoading: isGenerateQrPending }] = useGenerateVenueQrMutation();
 
   const handleExportCsv = async () => {
-    setExportStatus("Exporting…");
+    dispatch(setMerchantDashboardExportStatus("Exporting…"));
     try {
       const csv = await triggerExport().unwrap();
       const blob = new Blob([csv], { type: "text/csv" });
@@ -125,10 +125,10 @@ export const MerchantDashboardPage = () => {
       a.download = `revenue-export-${new Date().toISOString().slice(0, 10)}.csv`;
       a.click();
       URL.revokeObjectURL(url);
-      setExportStatus("✅ Exported!");
-      setTimeout(() => setExportStatus(null), 3000);
+      dispatch(setMerchantDashboardExportStatus("✅ Exported!"));
+      setTimeout(() => dispatch(setMerchantDashboardExportStatus(null)), 3000);
     } catch (err) {
-      setExportStatus(`❌ ${err instanceof Error ? err.message : "Export failed"}`);
+      dispatch(setMerchantDashboardExportStatus(`❌ ${err instanceof Error ? err.message : "Export failed"}`));
     }
   };
 
@@ -245,14 +245,18 @@ export const MerchantDashboardPage = () => {
               onClick={async () => {
                 const firstVenue = venuesData[0];
                 if (!firstVenue) {
-                  setQrMessage("Create a venue before generating QR");
+                  dispatch(setMerchantDashboardQrMessage("Create a venue before generating QR"));
                   return;
                 }
                 try {
                   const res = await generateQr({ venueId: firstVenue.id, type: "entry" }).unwrap();
-                  setQrMessage(`Entry QR ready. Nonce ${res.qrCode.nonce.slice(0, 8)}..., expires ${new Date(res.qrCode.expiresAt).toLocaleTimeString()}`);
+                  dispatch(
+                    setMerchantDashboardQrMessage(
+                      `Entry QR ready. Nonce ${res.qrCode.nonce.slice(0, 8)}..., expires ${new Date(res.qrCode.expiresAt).toLocaleTimeString()}`
+                    )
+                  );
                 } catch (e: any) {
-                  setQrMessage(e.message || "Failed to generate");
+                  dispatch(setMerchantDashboardQrMessage(e.message || "Failed to generate"));
                 }
               }}
               disabled={isGenerateQrPending}

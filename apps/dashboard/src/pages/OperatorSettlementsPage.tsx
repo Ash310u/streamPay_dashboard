@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useAppDispatch, useAppSelector } from "../store";
 import {
   useGetOperatorSettlementsQuery,
   useRetryOperatorSettlementMutation,
   useRunAdminSettlementMutation
 } from "../store/api";
+import { selectOperatorSettlements, setOperatorSettlementDate } from "../store/slices/operatorSettlementsSlice";
 
 type Settlement = {
   id: string;
@@ -26,7 +27,8 @@ const Spinner = () => (
 );
 
 export const OperatorSettlementsPage = () => {
-  const [settlementDate, setSettlementDate] = useState(new Date().toISOString().slice(0, 10));
+  const dispatch = useAppDispatch();
+  const { settlementDate } = useAppSelector(selectOperatorSettlements);
 
   const { data: settlements = [], isLoading, isError, refetch } = useGetOperatorSettlementsQuery();
 
@@ -45,7 +47,7 @@ export const OperatorSettlementsPage = () => {
             <input
               type="date"
               value={settlementDate}
-              onChange={(e) => setSettlementDate(e.target.value)}
+              onChange={(e) => dispatch(setOperatorSettlementDate(e.target.value))}
               className="rounded-2xl border border-white/40 bg-white/55 px-4 py-3 text-sm outline-none"
             />
             <button
